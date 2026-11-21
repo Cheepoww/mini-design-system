@@ -1,0 +1,3 @@
+# Tüm metin dosyaları depoda LF satır sonuyla saklanır.
+# Windows / macOS / Linux kullanan ekip arkadaşlarında dosyalar boşuna "değişmiş" görünmez.
+* text=auto eol=lf

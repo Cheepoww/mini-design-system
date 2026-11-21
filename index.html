@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="tr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Mini Design System</title>
+    <script>
+      // Sayfa çizilmeden önce temayı uygula; yoksa koyu temada bir an beyaz parlar
+      (function () {
+        var theme = "dark";
+        try { theme = localStorage.getItem("mds-theme") || "dark"; } catch (e) {}
+        document.documentElement.dataset.theme = theme === "light" ? "light" : "dark";
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
