@@ -1,14 +1,8 @@
 import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
-import { Button, ButtonGroup, IconButton, ToastProvider, useToast } from "./components";
-import type { ButtonSize, ButtonVariant, ToastPosition, ToastTone } from "./components";
+import { Button, ButtonGroup, IconButton, Input, Modal, Select, ToastProvider, useToast } from "./components";
+import type { ButtonSize, ButtonVariant, InputSize, ModalSize, SelectSize, ToastPosition, ToastTone } from "./components";
 import { cn } from "./lib/cn";
-
-/*
-  Button ve Toast için playground sayfası:
-  her bileşenin canlı önizlemesi, prop'larını değiştiren kontroller, üretilen kod,
-  örnekler ve prop tablosu.
-*/
 
 /* ---------- Ortak parçalar ---------- */
 
@@ -68,7 +62,6 @@ interface PropRow {
 function PropTable({ rows }: { rows: PropRow[] }) {
   return (
     <>
-      {/* Telefonda: her prop bir kart (dört sütunlu tablo yana taşıyordu) */}
       <dl className="glass flex flex-col divide-y divide-border rounded-card sm:hidden">
         {rows.map((p) => (
           <div key={p.name} className="flex flex-col gap-1 p-4 text-sm">
@@ -132,13 +125,6 @@ function CopyButton({ text }: { text: string }) {
   );
 }
 
-/*
-  Paylaşılabilir link: prop ayarları adrese yazılır, link açılınca aynı ayarlarla gelir.
-  Biçim: ?button.variant=danger&button.loading=true&toast.tone=warning
-  - Yalnızca VARSAYILANDAN FARKLI değerler yazılır (linkler kısa kalır).
-  - Adres "replaceState" ile güncellenir: her tıklama geri tuşuna yeni kayıt eklemez.
-  - #button / #toast bağlantıları (hash) bundan etkilenmez.
-*/
 function readUrlValues(prefix: string, controls: Control[], defaults: Values): Values {
   const params = new URLSearchParams(window.location.search);
   const values: Values = { ...defaults };
@@ -146,7 +132,7 @@ function readUrlValues(prefix: string, controls: Control[], defaults: Values): V
     const raw = params.get(`${prefix}.${c.name}`);
     if (raw === null) continue;
     if (c.type === "boolean") values[c.name] = raw === "true";
-    else if (c.type === "select") values[c.name] = c.options.includes(raw) ? raw : defaults[c.name]; // geçersiz değer yok sayılır
+    else if (c.type === "select") values[c.name] = c.options.includes(raw) ? raw : defaults[c.name];
     else values[c.name] = raw;
   }
   return values;
@@ -160,14 +146,12 @@ function writeUrlValues(prefix: string, values: Values, defaults: Values) {
   window.history.replaceState(null, "", `${window.location.pathname}${q ? `?${q}` : ""}${window.location.hash}`);
 }
 
-/** Bir bölümün prop değerleri: adresten başlar, değişince adrese yazılır */
 function useUrlValues(prefix: string, controls: Control[], defaults: Values) {
   const [values, setValues] = useState<Values>(() => readUrlValues(prefix, controls, defaults));
   useEffect(() => writeUrlValues(prefix, values, defaults), [prefix, values, defaults]);
   return [values, setValues] as const;
 }
 
-/** Bölüm başlığındaki "Linki kopyala": yalnızca bu bölümün ayarlarını taşıyan link */
 function ShareLinkButton({ id }: { id: string }) {
   const { toast } = useToast();
   return (
@@ -175,7 +159,6 @@ function ShareLinkButton({ id }: { id: string }) {
       size="sm"
       variant="secondary"
       onClick={async () => {
-        // Diğer bölümün ayarları linke karışmasın
         const params = new URLSearchParams(window.location.search);
         for (const key of [...params.keys()]) if (!key.startsWith(`${id}.`)) params.delete(key);
         const q = params.toString();
@@ -198,7 +181,6 @@ interface Guidance {
   avoid: string[];
 }
 
-/** "Ne zaman kullanılır?": benzer bileşenler arasında doğru seçimi anlatır */
 function GuidanceBlock({ id, guidance }: { id: string; guidance: Guidance }) {
   return (
     <div className="flex flex-col gap-4">
@@ -227,7 +209,6 @@ function GuidanceBlock({ id, guidance }: { id: string; guidance: Guidance }) {
   );
 }
 
-/** Bir bileşenin sayfası: başlık, canlı önizleme + kontroller + kod, rehber, örnekler, prop tablosu */
 function ComponentSection({
   id,
   title,
@@ -267,11 +248,6 @@ function ComponentSection({
         <ShareLinkButton id={id} />
       </header>
 
-      {/*
-        Telefonda kontroller önizlemenin ALTINDA kalıyor; ayar değiştirirken önizleme ekrandan çıkmasın diye
-        önizleme kaydırırken üstte yapışık durur (yalnızca bu bölüm boyunca). Yapışkanlık overflow-hidden ile
-        çalışmadığı için köşe kırpma yalnızca geniş ekranda; telefonda köşeler parçalara ayrı verilir.
-      */}
       <div className="glass grid grid-cols-[minmax(0,1fr)] rounded-card lg:grid-cols-[minmax(0,1fr)_260px] lg:overflow-hidden">
         <div
           data-testid={`${id}-preview`}
@@ -284,7 +260,6 @@ function ComponentSection({
             <h3 className="text-sm font-semibold">Props</h3>
             <button
               type="button"
-              // -m/p: görünüm aynı, dokunma alanı en az 24 px (telefonda parmakla basılabilsin)
               className="-mx-2 -my-1.5 rounded-control px-2 py-1.5 text-xs text-primary hover:underline disabled:cursor-not-allowed disabled:text-fg-muted disabled:no-underline"
               disabled={controls.every((c) => values[c.name] === defaults[c.name])}
               onClick={() => onValuesChange(defaults)}
@@ -337,7 +312,6 @@ const ArrowIcon = () => (
     <path d="M5 12h14M13 6l6 6-6 6" />
   </svg>
 );
-
 const TrashIcon = () => (
   <svg className="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
     <path d="M4 7h16M10 11v6M14 11v6M6 7l1 12h10l1-12M9 7V4h6v3" />
@@ -387,7 +361,6 @@ function buttonCode(v: Values) {
   return `${a.length ? `<Button ${a.join(" ")}>` : "<Button>"}${v.children}</Button>`;
 }
 
-/** Gerçek kullanım: tıklayınca yükleniyor (genişlik sabit), sonra bildirim */
 function SaveDemo() {
   const { toast } = useToast();
   const [saving, setSaving] = useState(false);
@@ -411,7 +384,6 @@ function SaveDemo() {
   );
 }
 
-/** Satır işlemleri: yalnızca ikonlu butonlar */
 function IconButtonDemo() {
   const { toast } = useToast();
   const [refreshing, setRefreshing] = useState(false);
@@ -438,7 +410,6 @@ function IconButtonDemo() {
   );
 }
 
-/** Tek seçimli grup: Gün / Hafta / Ay */
 function RangeDemo() {
   const [range, setRange] = useState("week");
   const labels: Record<string, string> = { day: "bugün", week: "bu hafta", month: "bu ay", year: "bu yıl" };
@@ -462,7 +433,6 @@ function RangeDemo() {
   );
 }
 
-/** Eylem grubu: birbirine yapışık butonlar */
 function ActionGroupDemo() {
   const { toast } = useToast();
   const say = (t: string) => () => toast({ title: t, duration: 2000 });
@@ -483,7 +453,7 @@ function ButtonSection() {
     <ComponentSection
       id="button"
       title="Button"
-      description="Kullanıcının bir eylem başlatması için. Dört varyant, üç boyut; disabled ve loading durumlarını destekler. Başka bir sayfaya gitmek için buton değil bağlantı kullan (buttonClasses ile buton görünümü verilebilir)."
+      description="Kullanıcının bir eylem başlatması için. Dört varyant, üç boyut; disabled ve loading durumlarını destekler."
       controls={buttonControls}
       values={values}
       defaults={buttonDefaults}
@@ -510,15 +480,10 @@ function ButtonSection() {
           "Bir işlemi başlatmak için: kaydet, gönder, sil, aç.",
           "Sayfadaki en önemli işlem için primary; ikincil işlemler için secondary veya ghost.",
           "Geri alınamaz işlemler için danger (ör. hesabı sil).",
-          "Yer darsa ve ikon herkesçe biliniyorsa IconButton (düzenle, sil, yenile).",
-          "Aynı konuya ait birkaç seçenekten biri seçilecekse ButtonGroup (Gün / Hafta / Ay).",
         ],
         avoid: [
-          "Başka bir sayfaya gitmek için: bağlantı (<a>) kullan; buton görünümü gerekiyorsa buttonClasses() ile ver.",
+          "Başka bir sayfaya gitmek için: bağlantı (<a>) kullan.",
           "Aynı alanda birden fazla primary buton: kullanıcı asıl işlemin hangisi olduğunu anlayamaz.",
-          "Etiketsiz ikon butonu: IconButton'da label zorunlu, ekran okuyucu onu okur.",
-          "Butonu pasif yapıp nedenini söylememek: yanında kısa bir açıklama göster.",
-          "Uzun işlemlerde loading olmadan bırakmak: kullanıcı tekrar tekrar tıklar.",
         ],
       }}
       examples={[
@@ -543,45 +508,16 @@ function ButtonSection() {
             </>
           ),
         },
-        {
-          title: "Durumlar: loading ve disabled",
-          content: (
-            <>
-              <Button loading>Kaydediliyor</Button>
-              <Button disabled>Pasif</Button>
-              <Button variant="secondary" disabled>Pasif ikincil</Button>
-            </>
-          ),
-        },
-        {
-          title: "İkonlu",
-          content: (
-            <>
-              <Button leftIcon={<PlusIcon />} onClick={say("Yeni kayıt")}>Yeni ekle</Button>
-              <Button variant="secondary" rightIcon={<ArrowIcon />} onClick={say("Sonraki adım")}>Devam et</Button>
-            </>
-          ),
-        },
-        { title: "Gerçek kullanım: kaydet → yükleniyor (loadingText) → bildirim", content: <SaveDemo /> },
-        { title: "IconButton: yalnızca ikon (label zorunlu, üzerine gelince ipucu)", content: <IconButtonDemo /> },
-        { title: "ButtonGroup: tek seçim (ok tuşlarıyla gezilir, pasif seçenek atlanır)", content: <RangeDemo /> },
+        { title: "Gerçek kullanım: kaydet → yükleniyor → bildirim", content: <SaveDemo /> },
+        { title: "IconButton: yalnızca ikon", content: <IconButtonDemo /> },
+        { title: "ButtonGroup: tek seçim", content: <RangeDemo /> },
         { title: "ButtonGroup: yapışık eylem butonları", content: <ActionGroupDemo /> },
       ]}
       props={[
         { name: "variant", type: '"primary" | "secondary" | "ghost" | "danger"', default: '"primary"', description: "Görsel stil" },
         { name: "size", type: '"sm" | "md" | "lg"', default: '"md"', description: "Yükseklik ve yazı boyutu" },
-        { name: "loading", type: "boolean", default: "false", description: "Spinner gösterir, tıklamayı engeller, aria-busy ekler; yükleme öncesi genişlik korunur" },
-        { name: "loadingText", type: "ReactNode", description: "Yüklenirken metnin yerine gösterilir (ör. \"Kaydediliyor…\")" },
+        { name: "loading", type: "boolean", default: "false", description: "Spinner gösterir, tıklamayı engeller" },
         { name: "disabled", type: "boolean", default: "false", description: "Butonu pasif yapar" },
-        { name: "leftIcon / rightIcon", type: "ReactNode", description: "Metnin solunda / sağında ikon; loading iken sol ikonun yerini spinner alır" },
-        { name: "fullWidth", type: "boolean", default: "false", description: "Genişliği %100 yapar" },
-        { name: "type", type: '"button" | "submit" | "reset"', default: '"button"', description: "Form içinde yanlışlıkla gönderim olmasın diye varsayılan button" },
-        { name: "...rest", type: "ButtonHTMLAttributes", description: "onClick, aria-* gibi tüm native prop'lar" },
-        { name: "ref", type: "Ref<HTMLButtonElement>", description: "Butona doğrudan erişim (ör. odak vermek)" },
-        { name: "buttonClasses()", type: "({ variant, size, fullWidth }) => string", description: "Bağlantıya buton görünümü vermek için sınıflar" },
-        { name: "<IconButton icon label>", type: "ReactNode, string", description: "Kare, yalnızca ikonlu buton; label zorunlu (ekran okuyucu adı + ipucu). Varsayılan varyant ghost" },
-        { name: "<ButtonGroup label>", type: "string", description: "Grubun ekran okuyucu adı (zorunlu)" },
-        { name: "<ButtonGroup options value onValueChange>", type: "{ value, label, disabled? }[]", description: "Verilirse tek seçimli grup (radyo grubu); verilmezse içindeki Button'lar yapışık dizilir" },
       ]}
     />
   );
@@ -590,12 +526,12 @@ function ButtonSection() {
 /* ---------- Toast ---------- */
 
 const toastControls: Control[] = [
-  { name: "tone", type: "select", options: ["info", "success", "warning", "danger", "loading"], hint: "Renk ve ikon; danger ekran okuyucuya hemen okunur; loading spinner gösterir" },
+  { name: "tone", type: "select", options: ["info", "success", "warning", "danger", "loading"], hint: "Renk ve ikon" },
   { name: "title", type: "text", hint: "Başlık (zorunlu)" },
-  { name: "description", type: "text", hint: "Başlığın altındaki ikinci satır (isteğe bağlı)" },
-  { name: "duration", type: "select", options: ["2000", "4000", "8000", "0"], hint: "Kaç ms sonra kapanır; 0 = kendiliğinden kapanmaz" },
-  { name: "action", type: "boolean", hint: "\"Geri al\" gibi tek bir eylem düğmesi ekler" },
-  { name: "position", type: "select", options: ["bottom-right", "top-right", "top-center", "bottom-center"], hint: "Bildirimlerin ekrandaki yeri (ToastProvider)" },
+  { name: "description", type: "text", hint: "Başlığın altındaki ikinci satır" },
+  { name: "duration", type: "select", options: ["2000", "4000", "8000", "0"], hint: "Kaç ms sonra kapanır" },
+  { name: "action", type: "boolean", hint: "Geri al düğmesi ekler" },
+  { name: "position", type: "select", options: ["bottom-right", "top-right", "top-center", "bottom-center"], hint: "Ekrandaki yeri" },
 ];
 const toastDefaults: Values = {
   tone: "success",
@@ -609,10 +545,7 @@ const toastDefaults: Values = {
 function toastCode(v: Values) {
   const a = [`tone: "${v.tone}"`, `title: "${v.title}"`];
   if (v.description) a.push(`description: "${v.description}"`);
-  if (v.duration !== "4000") a.push(`duration: ${v.duration}`);
-  if (v.action) a.push(`action: { label: "Geri al", onClick: undo }`);
-  const pos = v.position !== "bottom-right" ? ` position="${v.position}"` : "";
-  return `// main.tsx (bir kez)\n<ToastProvider${pos}>\n  <App />\n</ToastProvider>\n\n// herhangi bir bileşende\nconst { toast } = useToast();\n\ntoast({\n  ${a.join(",\n  ")},\n});`;
+  return `const { toast } = useToast();\n\ntoast({\n  ${a.join(",\n  ")},\n});`;
 }
 
 function ToastTrigger({ v }: { v: Values }) {
@@ -634,199 +567,18 @@ function ToastTrigger({ v }: { v: Values }) {
   );
 }
 
-function AllTones() {
-  const { toast } = useToast();
-  const items: { tone: ToastTone; label: string; title: string }[] = [
-    { tone: "info", label: "Info", title: "Yeni sürüm hazır" },
-    { tone: "success", label: "Success", title: "Kaydedildi" },
-    { tone: "warning", label: "Warning", title: "Depolama %90 dolu" },
-    { tone: "danger", label: "Danger", title: "Bağlantı koptu" },
-  ];
-  return (
-    <>
-      {items.map((i) => (
-        <Button key={i.tone} variant="secondary" size="sm" onClick={() => toast({ tone: i.tone, title: i.title })}>
-          {i.label}
-        </Button>
-      ))}
-    </>
-  );
-}
-
-const closeReasonLabels: Record<string, string> = {
-  timeout: "süre doldu",
-  close: "× ile kapatıldı",
-  swipe: "kaydırılarak kapatıldı",
-  escape: "Esc ile kapatıldı",
-  dismiss: "kodla kapatıldı",
-  dismissAll: "tümü kapatıldı",
-};
-
-const sampleFiles = ["Tasarım taslağı", "Toplantı notları", "Bütçe tablosu"];
-
-/**
- * Silme + geri al + onClose: dosya önce "çöp kutusuna" gider. Bildirim "Geri al" DIŞINDA bir nedenle
- * kapanınca (süre, ×, kaydırma) silme kesinleşir. Gerçek uygulamada sunucuya silme isteği burada gider.
- */
-function UndoDemo() {
-  const { toast } = useToast();
-  const [items, setItems] = useState(sampleFiles);
-  const [log, setLog] = useState<string[]>([]);
-  const remove = (name: string, index: number) => {
-    setItems((p) => p.filter((x) => x !== name));
-    toast({
-      tone: "info",
-      title: `"${name}" silindi`,
-      description: "Sağa ya da sola kaydırarak da kapatabilirsin.",
-      duration: 6000,
-      action: {
-        label: "Geri al",
-        onClick: () =>
-          setItems((p) => {
-            const next = [...p];
-            next.splice(Math.min(index, next.length), 0, name);
-            return next;
-          }),
-      },
-      onClose: (reason) =>
-        setLog((p) =>
-          [reason === "action" ? `"${name}" geri alındı` : `"${name}" kalıcı olarak silindi (${closeReasonLabels[reason]})`, ...p].slice(0, 4),
-        ),
-    });
-  };
-  return (
-    <div className="flex w-full flex-wrap gap-4">
-      <ul className="flex w-full max-w-sm flex-col divide-y divide-border rounded-card border border-border">
-        {items.length === 0 && (
-          <li className="flex items-center justify-between gap-3 px-3 py-2 text-sm text-fg-muted">
-            Liste boş.
-            <Button size="sm" variant="ghost" onClick={() => setItems(sampleFiles)}>
-              Örnekleri geri yükle
-            </Button>
-          </li>
-        )}
-        {items.map((name, i) => (
-          <li key={name} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
-            {name}
-            <Button size="sm" variant="ghost" onClick={() => remove(name, i)} aria-label={`${name} sil`}>
-              Sil
-            </Button>
-          </li>
-        ))}
-      </ul>
-      <div className="min-w-56 flex-1 text-sm">
-        <p className="font-medium text-fg">onClose kaydı</p>
-        <ul className="mt-1 flex flex-col gap-0.5 text-fg-muted" aria-live="polite">
-          {log.length === 0 ? <li>Henüz yok. Bir dosyayı sil, sonra bildirimi kapat veya geri al.</li> : log.map((l, i) => <li key={`${l}-${i}`}>{l}</li>)}
-        </ul>
-      </div>
-    </div>
-  );
-}
-
-/** Sıra: aynı anda en fazla 4 görünür, fazlası sırada bekler */
-function QueueDemo() {
-  const { toast } = useToast();
-  const [n, setN] = useState(0);
-  return (
-    <>
-      <Button
-        variant="secondary"
-        onClick={() => {
-          const start = n;
-          for (let i = 1; i <= 6; i++) toast({ title: `Bildirim ${start + i}`, description: i > 4 ? "Sıradaydı; biri kapanınca göründü." : undefined, duration: 3000 });
-          setN(start + 6);
-        }}
-      >
-        6 bildirim gönder
-      </Button>
-      <span className="text-sm text-fg-muted">İlk 4'ü görünür, kalanı "+2 bildirim sırada" olarak bekler; hiçbiri kaybolmaz.</span>
-    </>
-  );
-}
-
-/** toast.promise: tek çağrıyla "Kaydediliyor…" → "Kaydedildi" / "Kaydedilemedi" */
-function PromiseDemo() {
-  const { promise } = useToast();
-  const [busy, setBusy] = useState(false);
-  const run = (fail: boolean) => {
-    setBusy(true);
-    const job = new Promise<string>((resolve, reject) =>
-      window.setTimeout(() => (fail ? reject(new Error("Sunucuya ulaşılamadı")) : resolve("Profil")), 1500),
-    );
-    promise(job, {
-      loading: "Kaydediliyor…",
-      success: (name) => `${name} kaydedildi`,
-      error: (e) => `Kaydedilemedi: ${(e as Error).message}`,
-    })
-      .catch(() => {})
-      .finally(() => setBusy(false));
-  };
-  return (
-    <>
-      <Button loading={busy} onClick={() => run(false)}>
-        Başarılı işlem
-      </Button>
-      <Button variant="secondary" disabled={busy} onClick={() => run(true)}>
-        Hatalı işlem
-      </Button>
-    </>
-  );
-}
-
-/** Aynı id: kaç kez basılırsa basılsın tek bildirim kalır, içeriği güncellenir */
-function DedupeDemo() {
-  const { toast } = useToast();
-  const [count, setCount] = useState(0);
-  return (
-    <>
-      <Button
-        variant="secondary"
-        onClick={() => {
-          const n = count + 1;
-          setCount(n);
-          toast({ id: "baglanti", tone: "warning", title: "Bağlantı yavaş", description: `${n}. uyarı; yeni bildirim açılmadı, bu güncellendi.` });
-        }}
-      >
-        Aynı uyarıyı tekrar gönder
-      </Button>
-      <span className="text-sm text-fg-muted">Basılma sayısı: {count}</span>
-    </>
-  );
-}
-
-function DismissAllDemo() {
-  const { toast, dismissAll } = useToast();
-  return (
-    <>
-      <Button
-        variant="secondary"
-        onClick={() => ["Yeni mesaj", "Yorum eklendi", "Dosya yüklendi"].forEach((t) => toast({ title: t, duration: 0 }))}
-      >
-        3 kalıcı bildirim aç
-      </Button>
-      <Button variant="ghost" onClick={dismissAll}>
-        Tümünü kapat
-      </Button>
-      <span className="text-sm text-fg-muted">
-        Klavye: <kbd className="rounded border border-border px-1">F8</kbd> bildirimlere atlar, <kbd className="rounded border border-border px-1">Esc</kbd> odaktaki bildirimi kapatır.
-      </span>
-    </>
-  );
-}
-
 function ToastSection() {
   const [values, setValues] = useUrlValues("toast", toastControls, toastDefaults);
+  const { toast } = useToast();
   return (
     <ComponentSection
       id="toast"
       title="Toast"
-      description="İşlem sonucu gibi kısa, akışı bölmeyen bildirimler. Uygulama bir kez <ToastProvider> ile sarılır, sonra her yerden useToast() ile çağrılır. Süre dolunca kendiliğinden kapanır; × ile, Esc ile ya da telefonda yana kaydırarak kapatılır; fare üzerindeyken süre durur. Aynı anda en fazla 4 tane görünür, fazlası sırada bekler."
+      description="İşlem sonucu gibi kısa, akışı bölmeyen bildirimler."
       controls={toastControls}
       values={values}
       defaults={toastDefaults}
       onValuesChange={setValues}
-      // Konum Provider'a ait olduğu için önizleme kendi Provider'ını kullanır
       preview={
         <ToastProvider position={values.position as ToastPosition} label="Önizleme bildirimleri">
           <ToastTrigger v={values} />
@@ -834,40 +586,363 @@ function ToastSection() {
       }
       code={toastCode(values)}
       guidance={{
+        use: ["Bir işlemin sonucunu kısa süreliğine bildirmek için.", "Geri alınabilir işlemlerde Geri al sunmak için."],
+        avoid: ["Kullanıcıdan onay almak için (Modal kullan).", "Form alanı hatalarını göstermek için (Input error kullan)."],
+      }}
+      examples={[
+        {
+          title: "Tonlar",
+          content: (
+            <>
+              <Button variant="secondary" size="sm" onClick={() => toast({ tone: "info", title: "Yeni sürüm hazır" })}>Info</Button>
+              <Button variant="secondary" size="sm" onClick={() => toast({ tone: "success", title: "Kaydedildi" })}>Success</Button>
+              <Button variant="secondary" size="sm" onClick={() => toast({ tone: "warning", title: "Depolama %90 dolu" })}>Warning</Button>
+              <Button variant="secondary" size="sm" onClick={() => toast({ tone: "danger", title: "Bağlantı koptu" })}>Danger</Button>
+            </>
+          ),
+        },
+      ]}
+      props={[
+        { name: "tone", type: '"info" | "success" | "warning" | "danger" | "loading"', default: '"info"', description: "Renk ve ikon" },
+        { name: "title", type: "ReactNode", description: "Başlık (zorunlu)" },
+        { name: "description", type: "ReactNode", description: "Alt açıklama" },
+      ]}
+    />
+  );
+}
+
+/* ---------- Input ---------- */
+
+const inputControls: Control[] = [
+  { name: "size", type: "select", options: ["sm", "md", "lg"], hint: "Yükseklik ve yazı boyutu (Button ile uyumlu)" },
+  { name: "label", type: "text", hint: "Alan başlığı" },
+  { name: "placeholder", type: "text", hint: "İpucu metni" },
+  { name: "hint", type: "text", hint: "Alt yardımcı açıklama" },
+  { name: "error", type: "text", hint: "Doluysa çerçeve hata rengine döner" },
+  { name: "disabled", type: "boolean", hint: "Girişi pasif yapar" },
+  { name: "fullWidth", type: "boolean", hint: "Bulunduğu alanın tamamını kaplar" },
+];
+const inputDefaults: Values = {
+  size: "md",
+  label: "E-posta adresi",
+  placeholder: "ornek@cube.dev",
+  hint: "Bildirimler bu adrese gönderilir.",
+  error: "",
+  disabled: false,
+  fullWidth: true,
+};
+
+function inputCode(v: Values) {
+  const a: string[] = [];
+  if (v.label) a.push(`label="${v.label}"`);
+  if (v.placeholder) a.push(`placeholder="${v.placeholder}"`);
+  if (v.size !== "md") a.push(`size="${v.size}"`);
+  if (v.hint) a.push(`hint="${v.hint}"`);
+  if (v.error) a.push(`error="${v.error}"`);
+  if (v.disabled) a.push("disabled");
+  if (!v.fullWidth) a.push("fullWidth={false}");
+  return a.length ? `<Input\n  ${a.join("\n  ")}\n/>` : "<Input />";
+}
+
+function InputSection() {
+  const [values, setValues] = useUrlValues("input", inputControls, inputDefaults);
+  const [text, setText] = useState("");
+  return (
+    <ComponentSection
+      id="input"
+      title="Input"
+      description="Kullanıcıdan tek satırlık metin, e-posta, şifre veya sayı girişi almak için. Etiket (label), yardımcı açıklama (hint) ve hata durumlarını erişilebilir şekilde yönetir."
+      controls={inputControls}
+      values={values}
+      defaults={inputDefaults}
+      onValuesChange={setValues}
+      preview={
+        <div className="w-full max-w-sm">
+          <Input
+            size={values.size as InputSize}
+            label={(values.label as string) || undefined}
+            placeholder={(values.placeholder as string) || undefined}
+            hint={(values.hint as string) || undefined}
+            error={(values.error as string) || undefined}
+            disabled={values.disabled as boolean}
+            fullWidth={values.fullWidth as boolean}
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+          />
+        </div>
+      }
+      code={inputCode(values)}
+      guidance={{
         use: [
-          "Bir işlemin sonucunu kısa süreliğine bildirmek için: kaydedildi, davet gönderildi.",
-          "Geri alınabilir işlemlerde \"Geri al\" eylemi sunmak için.",
-          "Arka planda süren bir işlemi izlemek için (toast.promise: Kaydediliyor… → Kaydedildi).",
+          "Kullanıcıdan kısa metin, e-posta, şifre veya arama terimi almak için.",
+          "Her input için mutlaka anlaşılır bir label kullan; sadece placeholder'a güvenme.",
+          "Doğrulama hatalarını error prop'u ile alanın hemen altında göster.",
         ],
         avoid: [
-          "Kullanıcının kaçırmaması gereken önemli bilgi için: bildirim kendiliğinden kaybolur; sayfada kalıcı bir uyarı göster.",
-          "Kullanıcıdan onay almak için (ör. \"Silmek istediğine emin misin?\"): onay penceresi kullan.",
-          "Form alanı hatalarını göstermek için: hata, ilgili alanın hemen altında olmalı.",
-          "Aynı mesajı üst üste yığmak için: sabit bir id ver, mevcut bildirim güncellensin.",
+          "Uzun paragraflar veya çok satırlı açıklamalar için (bunun yerine textarea kullanılmalı).",
+          "Önceden tanımlı 3-5 seçenekten birini seçtirmek için (Select veya ButtonGroup kullan).",
         ],
       }}
       examples={[
-        { title: "Tüm tonlar (üst üste en fazla 4 tane kalır)", content: <AllTones /> },
-        { title: "Geri alınabilir silme: \"Geri al\" + onClose ile kesinleştirme (bildirimi kaydırarak da kapatabilirsin)", content: <UndoDemo /> },
-        { title: "toast.promise: işlem sürerken yükleniyor, bitince başarı veya hata", content: <PromiseDemo /> },
-        { title: "Tekrarı önleme: aynı id ile gönderilen bildirim yığılmaz, güncellenir", content: <DedupeDemo /> },
-        { title: "Sıra: fazla bildirim atılmaz, sırada bekler", content: <QueueDemo /> },
-        { title: "Tümünü kapat ve klavye kısayolları", content: <DismissAllDemo /> },
+        {
+          title: "Boyutlar",
+          content: (
+            <div className="flex w-full max-w-md flex-col gap-3">
+              <Input size="sm" placeholder="Küçük (sm - 32px)" />
+              <Input size="md" placeholder="Orta (md - 40px)" />
+              <Input size="lg" placeholder="Büyük (lg - 48px)" />
+            </div>
+          ),
+        },
+        {
+          title: "Durumlar: Hata ve Pasif",
+          content: (
+            <div className="flex w-full max-w-md flex-col gap-3">
+              <Input label="Kullanıcı adı" defaultValue="admin" error="Bu kullanıcı adı zaten alınmış." />
+              <Input label="Kurum kodu" defaultValue="CUBE-2026" disabled hint="Bu alan değiştirilemez." />
+            </div>
+          ),
+        },
       ]}
       props={[
-        { name: "tone", type: '"info" | "success" | "warning" | "danger" | "loading"', default: '"info"', description: "Renk ve ikon; danger ekran okuyucuya hemen (alert) okunur; loading spinner gösterir ve kendiliğinden kapanmaz" },
-        { name: "title", type: "ReactNode", description: "Başlık (zorunlu)" },
-        { name: "description", type: "ReactNode", description: "Başlığın altındaki ikinci satır" },
-        { name: "duration", type: "number (ms)", default: "4000", description: "Otomatik kapanma süresi; 0 = kalıcı. Alttaki ince çubuk kalan süreyi gösterir, fare üzerindeyken durur" },
-        { name: "action", type: "{ label; onClick }", description: "Tek eylem düğmesi (ör. Geri al); tıklanınca bildirim kapanır" },
-        { name: "<ToastProvider position>", type: '"top-right" | "bottom-right" | "top-center" | "bottom-center"', default: '"bottom-right"', description: "Bildirimlerin ekrandaki yeri" },
-        { name: "onClose", type: "(reason) => void", description: "Kapanınca bir kez çağrılır. reason: timeout, close, action, swipe, escape, dismiss, dismissAll" },
-        { name: "<ToastProvider max>", type: "number", default: "4", description: "Aynı anda görünen en fazla bildirim; fazlası atılmaz, sırada bekler (süresi göründüğü an başlar)" },
-        { name: "<ToastProvider label>", type: "string", default: '"Bildirimler"', description: "Bölgenin ekran okuyucu adı; birden fazla Provider varsa farklı ver" },
-        { name: "id", type: "string | number", description: "Sabit kimlik: aynı id ile tekrar çağrılınca yeni bildirim açılmaz, mevcut güncellenir" },
-        { name: "<ToastProvider hotkey>", type: "string | false", default: '"F8"', description: "Odağı bildirimlere taşıyan kısayol; odaktaki bildirim Esc ile kapanır" },
-        { name: "useToast()", type: "{ toast, update, dismiss, dismissAll, promise }", description: "toast(options) id döndürür; update(id, options) içeriği değiştirir; dismiss(id) / dismissAll() kapatır" },
-        { name: "promise(p, { loading, success, error })", type: "Promise<T>", description: "İşlem sürerken yükleniyor bildirimi; bitince başarı ya da hata. success/error metin veya sonuca göre fonksiyon olabilir" },
+        { name: "label", type: "ReactNode", description: "Input üstündeki etiket; tıklanınca input'a odaklanır" },
+        { name: "size", type: '"sm" | "md" | "lg"', default: '"md"', description: "Yükseklik ve yazı boyutu" },
+        { name: "hint", type: "ReactNode", description: "Alt kısımda gösterilen yardımcı metin" },
+        { name: "error", type: "ReactNode", description: "Hata mesajı; çerçeveyi danger rengine çevirir ve aria-invalid ekler" },
+        { name: "leftIcon / rightIcon", type: "ReactNode", description: "Input içinde sol veya sağ tarafta ikon" },
+        { name: "fullWidth", type: "boolean", default: "true", description: "Genişliği %100 yapar" },
+        { name: "disabled", type: "boolean", default: "false", description: "Input'u pasif yapar" },
+      ]}
+    />
+  );
+}
+
+/* ---------- Select ---------- */
+
+const sampleRoles = [
+  { value: "dev", label: "Frontend Geliştirici" },
+  { value: "design", label: "UI/UX Tasarımcı" },
+  { value: "pm", label: "Ürün Yöneticisi" },
+  { value: "qa", label: "Test Uzmanı (Pasif)", disabled: true },
+];
+
+const selectControls: Control[] = [
+  { name: "size", type: "select", options: ["sm", "md", "lg"], hint: "Yükseklik ve yazı boyutu" },
+  { name: "label", type: "text", hint: "Alan başlığı" },
+  { name: "placeholder", type: "text", hint: "Seçim yapılmadan önce görünen metin" },
+  { name: "hint", type: "text", hint: "Alt yardımcı açıklama" },
+  { name: "error", type: "text", hint: "Hata mesajı" },
+  { name: "disabled", type: "boolean", hint: "Seçimi pasif yapar" },
+];
+const selectDefaults: Values = {
+  size: "md",
+  label: "Ekip rolü",
+  placeholder: "Bir rol seçiniz...",
+  hint: "Yetkiler seçilen role göre atanır.",
+  error: "",
+  disabled: false,
+};
+
+function selectCode(v: Values) {
+  const a: string[] = [`options={roles}`];
+  if (v.label) a.push(`label="${v.label}"`);
+  if (v.placeholder !== "Seçim yapınız...") a.push(`placeholder="${v.placeholder}"`);
+  if (v.size !== "md") a.push(`size="${v.size}"`);
+  if (v.hint) a.push(`hint="${v.hint}"`);
+  if (v.error) a.push(`error="${v.error}"`);
+  if (v.disabled) a.push("disabled");
+  return `<Select\n  ${a.join("\n  ")}\n/>`;
+}
+
+function SelectSection() {
+  const [values, setValues] = useUrlValues("select", selectControls, selectDefaults);
+  const [selected, setSelected] = useState("");
+  return (
+    <ComponentSection
+      id="select"
+      title="Select"
+      description="Kullanıcının önceden tanımlanmış seçenekler listesinden tek bir değer seçmesi için açılır menü."
+      controls={selectControls}
+      values={values}
+      defaults={selectDefaults}
+      onValuesChange={setValues}
+      preview={
+        <div className="w-full max-w-sm">
+          <Select
+            size={values.size as SelectSize}
+            label={(values.label as string) || undefined}
+            placeholder={(values.placeholder as string) || undefined}
+            hint={(values.hint as string) || undefined}
+            error={(values.error as string) || undefined}
+            disabled={values.disabled as boolean}
+            options={sampleRoles}
+            value={selected}
+            onChange={(e) => setSelected(e.target.value)}
+          />
+        </div>
+      }
+      code={selectCode(values)}
+      guidance={{
+        use: [
+          "4 veya daha fazla seçenek arasından tek bir seçim yapılacaksa (şehir, kategori, rol).",
+          "Form içinde Input ve Button ile aynı hizada açılır liste gerektiğinde.",
+        ],
+        avoid: [
+          "Yalnızca 2-3 kısa seçenek varsa ve ekranda yer varsa (ButtonGroup daha hızlı seçim sağlar).",
+          "Açık/kapalı gibi ikili durumlar için (checkbox veya toggle kullan).",
+        ],
+      }}
+      examples={[
+        {
+          title: "Varsayılan ve Hata Durumu",
+          content: (
+            <div className="flex w-full max-w-md flex-col gap-3">
+              <Select label="Şehir" options={[{ value: "ist", label: "İstanbul" }, { value: "ank", label: "Ankara" }, { value: "izm", label: "İzmir" }]} defaultValue="ist" />
+              <Select label="Departman" options={sampleRoles} defaultValue="" error="Lütfen bir departman seçin." />
+            </div>
+          ),
+        },
+      ]}
+      props={[
+        { name: "options", type: "{ value: string; label: string; disabled?: boolean }[]", description: "Açılır listede gösterilecek seçenekler (zorunlu)" },
+        { name: "label", type: "ReactNode", description: "Select üstündeki etiket" },
+        { name: "placeholder", type: "string", default: '"Seçim yapınız..."', description: "Henüz seçim yapılmadığında görünen devre dışı ilk seçenek" },
+        { name: "size", type: '"sm" | "md" | "lg"', default: '"md"', description: "Yükseklik ve yazı boyutu" },
+        { name: "hint / error", type: "ReactNode", description: "Alt yardımcı metin veya hata uyarısı" },
+        { name: "disabled", type: "boolean", default: "false", description: "Select'i pasif yapar" },
+      ]}
+    />
+  );
+}
+
+/* ---------- Modal ---------- */
+
+const modalControls: Control[] = [
+  { name: "size", type: "select", options: ["sm", "md", "lg"], hint: "Pencere genişliği" },
+  { name: "title", type: "text", hint: "Modal başlığı" },
+  { name: "description", type: "text", hint: "Başlık altı açıklama" },
+  { name: "closeOnBackdropClick", type: "boolean", hint: "Dışarıya tıklanınca kapansın mı?" },
+];
+const modalDefaults: Values = {
+  size: "md",
+  title: "Yeni üye davet et",
+  description: "Ekip arkadaşının bilgilerini girerek çalışma alanına davet edebilirsin.",
+  closeOnBackdropClick: true,
+};
+
+function modalCode(v: Values) {
+  const a = [`open={open}`, `onClose={() => setOpen(false)}`];
+  if (v.title) a.push(`title="${v.title}"`);
+  if (v.description) a.push(`description="${v.description}"`);
+  if (v.size !== "md") a.push(`size="${v.size}"`);
+  if (!v.closeOnBackdropClick) a.push("closeOnBackdropClick={false}");
+  return `<Modal\n  ${a.join("\n  ")}\n  footer={\n    <>\n      <Button variant="secondary" onClick={() => setOpen(false)}>Vazgeç</Button>\n      <Button onClick={handleSave}>Kaydet</Button>\n    </>\n  }\n>\n  {/* Modal içeriği */}\n</Modal>`;
+}
+
+function ModalSection() {
+  const { toast } = useToast();
+  const [values, setValues] = useUrlValues("modal", modalControls, modalDefaults);
+  const [open, setOpen] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+
+  return (
+    <ComponentSection
+      id="modal"
+      title="Modal"
+      description="Kullanıcının mevcut sayfa bağlamını kaybetmeden odaklanması gereken kritik onaylar, formlar veya detay pencereleri. Esc tuşu, dışarı tıklama ve kapatma butonu ile yönetilir."
+      controls={modalControls}
+      values={values}
+      defaults={modalDefaults}
+      onValuesChange={setValues}
+      preview={
+        <>
+          <Button onClick={() => setOpen(true)}>Modalı Aç</Button>
+          <Modal
+            open={open}
+            onClose={() => setOpen(false)}
+            size={values.size as ModalSize}
+            title={(values.title as string) || undefined}
+            description={(values.description as string) || undefined}
+            closeOnBackdropClick={values.closeOnBackdropClick as boolean}
+            footer={
+              <>
+                <Button variant="secondary" onClick={() => setOpen(false)}>
+                  Vazgeç
+                </Button>
+                <Button
+                  onClick={() => {
+                    setOpen(false);
+                    toast({ tone: "success", title: "Davet gönderildi" });
+                  }}
+                >
+                  Gönder
+                </Button>
+              </>
+            }
+          >
+            <div className="flex flex-col gap-3">
+              <Input label="Ad Soyad" placeholder="Örn: Zeynep Kaya" />
+              <Select label="Rol" options={sampleRoles} />
+            </div>
+          </Modal>
+        </>
+      }
+      code={modalCode(values)}
+      guidance={{
+        use: [
+          "Geri alınamaz işlemlerden önce kullanıcıdan kesin onay almak için (ör. hesabı sil).",
+          "Kullanıcıyı sayfadan uzaklaştırmadan kısa bir form doldurtmak için.",
+        ],
+        avoid: [
+          "Sadece işlem sonucu bildirmek için (akışı bölmeyen Toast bileşenini kullan).",
+          "Çok uzun, sayfalarca kaydırma gerektiren içerikler için (ayrı bir sayfa aç).",
+        ],
+      }}
+      examples={[
+        {
+          title: "Tehlikeli İşlem Onayı (Danger Confirm)",
+          content: (
+            <>
+              <Button variant="danger" onClick={() => setConfirmOpen(true)}>
+                Projeyi Sil
+              </Button>
+              <Modal
+                open={confirmOpen}
+                onClose={() => setConfirmOpen(false)}
+                size="sm"
+                title="Projeyi silmek istediğine emin misin?"
+                description="Bu işlem geri alınamaz ve tüm bileşen kayıtları kalıcı olarak silinir."
+                footer={
+                  <>
+                    <Button variant="secondary" onClick={() => setConfirmOpen(false)}>
+                      İptal
+                    </Button>
+                    <Button
+                      variant="danger"
+                      onClick={() => {
+                        setConfirmOpen(false);
+                        toast({ tone: "danger", title: "Proje silindi" });
+                      }}
+                    >
+                      Evet, Sil
+                    </Button>
+                  </>
+                }
+              >
+                <p className="text-sm text-fg-muted">Devam etmeden önce yedek aldığından emin ol.</p>
+              </Modal>
+            </>
+          ),
+        },
+      ]}
+      props={[
+        { name: "open", type: "boolean", description: "Modalın görünür olup olmadığını belirler (zorunlu)" },
+        { name: "onClose", type: "() => void", description: "Esc, dış tıklama veya × butonuna basıldığında çalışır (zorunlu)" },
+        { name: "title", type: "ReactNode", description: "Üst başlık; aria-labelledby ile bağlanır" },
+        { name: "description", type: "ReactNode", description: "Başlığın altındaki açıklama metni" },
+        { name: "size", type: '"sm" | "md" | "lg"', default: '"md"', description: "Pencere maksimum genişliği" },
+        { name: "closeOnBackdropClick", type: "boolean", default: "true", description: "Arka plan karartmasına tıklandığında kapanmasını sağlar" },
+        { name: "footer", type: "ReactNode", description: "Alt çizginin altında sağa hizalı aksiyon butonları alanı" },
       ]}
     />
   );
@@ -881,9 +956,7 @@ function ThemeButton() {
     document.documentElement.dataset.theme = theme;
     try {
       localStorage.setItem("mds-theme", theme);
-    } catch {
-      // kaydedilemezse yalnızca bu oturumda geçerli olur
-    }
+    } catch {}
   }, [theme]);
   const next = theme === "dark" ? "light" : "dark";
   return (
@@ -896,9 +969,7 @@ function ThemeButton() {
 export function App() {
   return (
     <div className="flex min-h-screen flex-col gap-3 p-2 md:p-3">
-      {/* Başlık sayfanın üstünde durur, kaydırınca peşinden gelmez */}
       <header className="glass flex flex-wrap items-center justify-between gap-3 rounded-card px-4 py-2.5">
-        {/* Marka: elmas işaret + CUBE; renk vurgu token'ından gelir */}
         <a href="#" className="flex min-w-0 flex-col gap-0.5 rounded-control px-1 py-0.5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
           <span className="flex items-center gap-2 text-primary">
             <svg className="size-5 shrink-0" viewBox="0 0 24 24" aria-hidden="true">
@@ -909,20 +980,21 @@ export function App() {
           </span>
           <span className="truncate text-xs text-fg-muted">Mini Design System</span>
         </a>
-        {/* Telefonda: üst satırda logo + tema, bağlantılar alt satırda */}
         <nav aria-label="Bileşenler" className="order-last flex w-full items-center gap-1 text-sm sm:order-none sm:w-auto">
-          <a href="#button" className="rounded-control px-3 py-1.5 text-fg-muted hover:bg-white/8 hover:text-fg">
-            Button
-          </a>
-          <a href="#toast" className="rounded-control px-3 py-1.5 text-fg-muted hover:bg-white/8 hover:text-fg">
-            Toast
-          </a>
+          <a href="#button" className="rounded-control px-3 py-1.5 text-fg-muted hover:bg-white/8 hover:text-fg">Button</a>
+          <a href="#toast" className="rounded-control px-3 py-1.5 text-fg-muted hover:bg-white/8 hover:text-fg">Toast</a>
+          <a href="#input" className="rounded-control px-3 py-1.5 text-fg-muted hover:bg-white/8 hover:text-fg">Input</a>
+          <a href="#select" className="rounded-control px-3 py-1.5 text-fg-muted hover:bg-white/8 hover:text-fg">Select</a>
+          <a href="#modal" className="rounded-control px-3 py-1.5 text-fg-muted hover:bg-white/8 hover:text-fg">Modal</a>
         </nav>
         <ThemeButton />
       </header>
       <main className="mx-auto flex w-full max-w-5xl flex-col gap-16 px-2 py-6 sm:px-4">
         <ButtonSection />
         <ToastSection />
+        <InputSection />
+        <SelectSection />
+        <ModalSection />
       </main>
     </div>
   );
