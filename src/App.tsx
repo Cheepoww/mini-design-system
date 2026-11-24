@@ -1,7 +1,22 @@
 import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
-import { Button, ButtonGroup, IconButton, Input, Modal, Select, ToastProvider, useToast } from "./components";
-import type { ButtonSize, ButtonVariant, InputSize, ModalSize, SelectSize, ToastPosition, ToastTone } from "./components";
+import { Badge, Button, ButtonGroup, EmptyState, IconButton, Input, LoadingState, Modal, Select, Skeleton, ToastProvider, useToast } from "./components";
+import type {
+  BadgeSize,
+  BadgeTone,
+  BadgeVariant,
+  ButtonSize,
+  ButtonVariant,
+  EmptyStateSize,
+  EmptyStateTone,
+  InputSize,
+  LoadingStateSize,
+  LoadingStateVariant,
+  ModalSize,
+  SelectSize,
+  ToastPosition,
+  ToastTone,
+} from "./components";
 import { cn } from "./lib/cn";
 
 /* ---------- Ortak parçalar ---------- */
@@ -948,6 +963,463 @@ function ModalSection() {
   );
 }
 
+/* ---------- Badge ---------- */
+
+const CheckIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M5 12.5l4.5 4.5L19 7.5" />
+  </svg>
+);
+
+const badgeControls: Control[] = [
+  { name: "tone", type: "select", options: ["neutral", "primary", "success", "warning", "danger", "info"], hint: "Anlam rengi: nötr, marka, başarı, uyarı, hata, bilgi" },
+  { name: "variant", type: "select", options: ["soft", "solid", "outline"], hint: "Açık zemin, dolu zemin veya yalnızca çerçeve" },
+  { name: "size", type: "select", options: ["sm", "md"], hint: "Yükseklik (20 / 24 px)" },
+  { name: "children", type: "text", hint: "Rozetin yazısı; kısa tut (1-2 kelime)" },
+  { name: "dot", type: "boolean", hint: "Solda durum noktası" },
+  { name: "removable", type: "boolean", hint: "onRemove verir: sağda × butonu çıkar" },
+];
+const badgeDefaults: Values = {
+  tone: "success",
+  variant: "soft",
+  size: "md",
+  children: "Yayında",
+  dot: true,
+  removable: false,
+};
+
+function badgeCode(v: Values) {
+  const a: string[] = [];
+  if (v.tone !== "neutral") a.push(`tone="${v.tone}"`);
+  if (v.variant !== "soft") a.push(`variant="${v.variant}"`);
+  if (v.size !== "md") a.push(`size="${v.size}"`);
+  if (v.dot) a.push("dot");
+  if (v.removable) a.push("onRemove={handleRemove}");
+  return `<Badge${a.length ? ` ${a.join(" ")}` : ""}>${v.children}</Badge>`;
+}
+
+function FilterTagsDemo() {
+  const all = ["React", "Tailwind", "TypeScript", "Vite"];
+  const [tags, setTags] = useState(all);
+  return (
+    <>
+      {tags.map((t) => (
+        <Badge key={t} tone="primary" onRemove={() => setTags((prev) => prev.filter((x) => x !== t))}>
+          {t}
+        </Badge>
+      ))}
+      {tags.length < all.length && (
+        <Button size="sm" variant="ghost" onClick={() => setTags(all)}>
+          Geri getir
+        </Button>
+      )}
+    </>
+  );
+}
+
+function BadgeSection() {
+  const { toast } = useToast();
+  const [values, setValues] = useUrlValues("badge", badgeControls, badgeDefaults);
+  return (
+    <ComponentSection
+      id="badge"
+      title="Badge"
+      description="Bir öğenin durumunu, kategorisini veya sayısını kısa bir etiketle gösterir. Etkileşimsizdir; yalnızca onRemove verilirse içinde kaldırma butonu olur."
+      controls={badgeControls}
+      values={values}
+      defaults={badgeDefaults}
+      onValuesChange={setValues}
+      preview={
+        <Badge
+          tone={values.tone as BadgeTone}
+          variant={values.variant as BadgeVariant}
+          size={values.size as BadgeSize}
+          dot={values.dot as boolean}
+          onRemove={values.removable ? () => toast({ tone: "info", title: "onRemove çağrıldı", duration: 2000 }) : undefined}
+        >
+          {(values.children as string) || "Badge"}
+        </Badge>
+      }
+      code={badgeCode(values)}
+      guidance={{
+        use: [
+          "Bir kaydın durumunu göstermek için (Yayında, Taslak, Arşivlendi).",
+          "Sayı veya kategori etiketi için (3 yeni, Beta, Ücretsiz).",
+          "Seçili filtreleri kaldırılabilir etiketler halinde listelemek için (onRemove).",
+        ],
+        avoid: [
+          "Tıklanınca bir işlem yapan öğeler için (Button kullan); rozet tıklanabilir görünmemeli.",
+          "Uzun cümleler için; rozet 1-2 kelimeyi geçmemeli.",
+          "Anlamı yalnızca renkle vermek için; metin de durumu söylemeli (renk körlüğü).",
+        ],
+      }}
+      examples={[
+        {
+          title: "Tonlar (soft)",
+          content: (
+            <>
+              <Badge>Taslak</Badge>
+              <Badge tone="primary">Yeni</Badge>
+              <Badge tone="success" dot>
+                Yayında
+              </Badge>
+              <Badge tone="warning" dot>
+                Beklemede
+              </Badge>
+              <Badge tone="danger" dot>
+                Başarısız
+              </Badge>
+              <Badge tone="info">Beta</Badge>
+            </>
+          ),
+        },
+        {
+          title: "Varyantlar: soft / solid / outline",
+          content: (
+            <>
+              <Badge tone="primary">Soft</Badge>
+              <Badge tone="primary" variant="solid">
+                Solid
+              </Badge>
+              <Badge tone="primary" variant="outline">
+                Outline
+              </Badge>
+              <Badge tone="success" variant="solid" icon={<CheckIcon />}>
+                Doğrulandı
+              </Badge>
+              <Badge tone="danger" variant="solid" size="sm">
+                12
+              </Badge>
+            </>
+          ),
+        },
+        { title: "Kaldırılabilir filtre etiketleri", content: <FilterTagsDemo /> },
+      ]}
+      props={[
+        { name: "tone", type: '"neutral" | "primary" | "success" | "warning" | "danger" | "info"', default: '"neutral"', description: "Anlam rengi" },
+        { name: "variant", type: '"soft" | "solid" | "outline"', default: '"soft"', description: "Dolgu stili" },
+        { name: "size", type: '"sm" | "md"', default: '"md"', description: "Yükseklik ve iç boşluk" },
+        { name: "dot", type: "boolean", default: "false", description: "Solda durum noktası (ekran okuyucudan gizli)" },
+        { name: "icon", type: "ReactNode", description: "Solda ikon; verilirse dot yerine geçer" },
+        { name: "onRemove", type: "() => void", description: "Verilirse sağda × butonu çıkar" },
+        { name: "removeLabel", type: "string", default: '"Kaldır"', description: '× butonunun ekran okuyucu adı; metinle birleşir: "Kaldır: React"' },
+      ]}
+    />
+  );
+}
+
+/* ---------- EmptyState ---------- */
+
+const SearchIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true">
+    <circle cx="11" cy="11" r="6.5" />
+    <path d="M16 16l4 4" />
+  </svg>
+);
+const AlertIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M12 4 2.5 20h19z" />
+    <path d="M12 10v4M12 17h.01" />
+  </svg>
+);
+
+const emptyControls: Control[] = [
+  { name: "title", type: "text", hint: "Ne olduğunu söyleyen kısa başlık (zorunlu)" },
+  { name: "description", type: "text", hint: "Neden boş ve ne yapılabilir" },
+  { name: "size", type: "select", options: ["sm", "md"], hint: "sm: kart/tablo içi, md: sayfa ortası" },
+  { name: "tone", type: "select", options: ["neutral", "danger"], hint: "danger: içerik hata yüzünden gelmediyse" },
+  { name: "bordered", type: "boolean", hint: "Kesik çizgili çerçeve" },
+  { name: "action", type: "boolean", hint: "Ana eylem butonu ekler" },
+];
+const emptyDefaults: Values = {
+  title: "Henüz proje yok",
+  description: "İlk projeni oluşturduğunda burada listelenecek.",
+  size: "md",
+  tone: "neutral",
+  bordered: true,
+  action: true,
+};
+
+function emptyCode(v: Values) {
+  const a: string[] = [`title="${v.title}"`];
+  if (v.description) a.push(`description="${v.description}"`);
+  if (v.size !== "md") a.push(`size="${v.size}"`);
+  if (v.tone !== "neutral") a.push(`tone="${v.tone}"`);
+  if (v.bordered) a.push("bordered");
+  if (v.action) a.push(`action={<Button leftIcon={<PlusIcon />}>Proje oluştur</Button>}`);
+  return `<EmptyState\n  ${a.join("\n  ")}\n/>`;
+}
+
+function SearchEmptyDemo() {
+  const items = ["Button", "Input", "Select", "Modal", "Badge", "Toast"];
+  const [query, setQuery] = useState("zzz");
+  const results = items.filter((i) => i.toLowerCase().includes(query.trim().toLowerCase()));
+  return (
+    <div className="flex w-full flex-col gap-3">
+      <Input label="Bileşen ara" value={query} onChange={(e) => setQuery(e.target.value)} />
+      {results.length ? (
+        <div className="flex flex-wrap gap-2">
+          {results.map((r) => (
+            <Badge key={r}>{r}</Badge>
+          ))}
+        </div>
+      ) : (
+        <EmptyState
+          size="sm"
+          icon={<SearchIcon />}
+          title={`"${query}" için sonuç yok`}
+          description="Yazımı kontrol et veya daha genel bir kelime dene."
+          action={
+            <Button size="sm" variant="secondary" onClick={() => setQuery("")}>
+              Aramayı temizle
+            </Button>
+          }
+        />
+      )}
+    </div>
+  );
+}
+
+function EmptyStateSection() {
+  const { toast } = useToast();
+  const [values, setValues] = useUrlValues("empty", emptyControls, emptyDefaults);
+  return (
+    <ComponentSection
+      id="empty-state"
+      title="Empty State"
+      description="Gösterilecek içerik olmadığında boş bir alan yerine ne olduğunu ve sonraki adımı anlatır: liste boş, arama sonuçsuz veya veri yüklenemedi."
+      controls={emptyControls}
+      values={values}
+      defaults={emptyDefaults}
+      onValuesChange={setValues}
+      preview={
+        <EmptyState
+          title={(values.title as string) || "Başlık"}
+          description={(values.description as string) || undefined}
+          size={values.size as EmptyStateSize}
+          tone={values.tone as EmptyStateTone}
+          bordered={values.bordered as boolean}
+          icon={values.tone === "danger" ? <AlertIcon /> : undefined}
+          action={
+            values.action ? (
+              <Button leftIcon={<PlusIcon />} variant={values.tone === "danger" ? "secondary" : "primary"} onClick={() => toast({ tone: "info", title: "Eylem tıklandı", duration: 2000 })}>
+                {values.tone === "danger" ? "Tekrar dene" : "Proje oluştur"}
+              </Button>
+            ) : undefined
+          }
+        />
+      }
+      code={emptyCode(values)}
+      guidance={{
+        use: [
+          "Bir liste, tablo veya panel ilk kez boşken (kullanıcıya nasıl başlayacağını göster).",
+          "Arama/filtre sonuç vermediğinde (filtreleri temizleme eylemi sun).",
+          "Veri yüklenemediğinde tone=\"danger\" ile, tekrar deneme eylemiyle birlikte.",
+        ],
+        avoid: [
+          "Veri hâlâ yüklenirken (LoadingState kullan; önce boş ekran göstermek yanıltır).",
+          "Kısa süreli işlem sonuçları için (Toast kullan).",
+          "Kullanıcıyı suçlayan metinlerle; ne olduğunu ve çözümü nötr dille anlat.",
+        ],
+      }}
+      examples={[
+        {
+          title: "Arama sonuçsuz (sm, kart içi): yazınca sonuç gelir",
+          content: <SearchEmptyDemo />,
+        },
+        {
+          title: "Hata durumu",
+          content: (
+            <EmptyState
+              tone="danger"
+              icon={<AlertIcon />}
+              title="Projeler yüklenemedi"
+              description="Bağlantında bir sorun olabilir. Birkaç saniye sonra tekrar dene."
+              action={
+                <Button variant="secondary" onClick={() => toast({ tone: "info", title: "Tekrar deneniyor…", duration: 2000 })}>
+                  Tekrar dene
+                </Button>
+              }
+              secondaryAction={
+                <Button variant="ghost" onClick={() => toast({ tone: "info", title: "Destek sayfası açılırdı", duration: 2000 })}>
+                  Destek
+                </Button>
+              }
+            />
+          ),
+        },
+      ]}
+      props={[
+        { name: "title", type: "ReactNode", description: "Kısa başlık (zorunlu)" },
+        { name: "description", type: "ReactNode", description: "Açıklama; neden boş ve ne yapılabilir" },
+        { name: "icon", type: "ReactNode | false", default: "kutu ikonu", description: "Başlık üstündeki ikon; false ile gizlenir" },
+        { name: "action / secondaryAction", type: "ReactNode", description: "Ana ve ikincil eylem (genelde Button)" },
+        { name: "size", type: '"sm" | "md"', default: '"md"', description: "sm: kart içi, md: sayfa ortası" },
+        { name: "tone", type: '"neutral" | "danger"', default: '"neutral"', description: "danger: hata durumu rengi" },
+        { name: "headingLevel", type: '"h2" | "h3" | "h4"', default: '"h3"', description: "Başlığın HTML seviyesi; sayfa başlık sırasını korur" },
+        { name: "bordered", type: "boolean", default: "false", description: "Kesik çizgili çerçeve" },
+      ]}
+    />
+  );
+}
+
+/* ---------- LoadingState ---------- */
+
+const loadingControls: Control[] = [
+  { name: "variant", type: "select", options: ["spinner", "skeleton", "overlay"], hint: "Dönen gösterge, içerik iskeleti veya içeriğin üstüne perde" },
+  { name: "label", type: "text", hint: "Ekran okuyucuya (ve spinner/overlay'de ekrana) yazılan metin" },
+  { name: "hideLabel", type: "boolean", hint: "Metni yalnızca ekran okuyucuya bırakır" },
+  { name: "size", type: "select", options: ["sm", "md", "lg"], hint: "Spinner boyutu (spinner/overlay)" },
+  { name: "lines", type: "select", options: ["1", "2", "3", "4", "5"], hint: "İskelet satır sayısı (skeleton)" },
+  { name: "avatar", type: "boolean", hint: "Başta avatar dairesi (skeleton)" },
+];
+const loadingDefaults: Values = {
+  variant: "spinner",
+  label: "Yükleniyor…",
+  hideLabel: false,
+  size: "md",
+  lines: "3",
+  avatar: false,
+};
+
+function loadingCode(v: Values) {
+  const a: string[] = [];
+  if (v.variant !== "spinner") a.push(`variant="${v.variant}"`);
+  if (v.label !== "Yükleniyor…") a.push(`label="${v.label}"`);
+  if (v.hideLabel) a.push("hideLabel");
+  if (v.variant !== "skeleton" && v.size !== "md") a.push(`size="${v.size}"`);
+  if (v.variant === "skeleton") {
+    if (v.lines !== "3") a.push(`lines={${v.lines}}`);
+    if (v.avatar) a.push("avatar");
+  }
+  const attrs = a.length ? ` ${a.join(" ")}` : "";
+  if (v.variant === "overlay") return `<LoadingState${attrs} loading={saving}>\n  <ProfileForm />\n</LoadingState>`;
+  return `<LoadingState${attrs} />`;
+}
+
+function FakeCard() {
+  return (
+    <div className="flex flex-col gap-3 rounded-card border border-border bg-surface/40 p-4">
+      <Input label="Ad Soyad" defaultValue="Zeynep Kaya" />
+      <Button size="sm">Kaydet</Button>
+    </div>
+  );
+}
+
+function FetchDemo() {
+  const [state, setState] = useState<"idle" | "loading" | "done">("idle");
+  useEffect(() => {
+    if (state !== "loading") return;
+    const t = window.setTimeout(() => setState("done"), 1500);
+    return () => window.clearTimeout(t);
+  }, [state]);
+  return (
+    <div className="flex w-full flex-col gap-3">
+      <div>
+        <Button size="sm" variant="secondary" loading={state === "loading"} onClick={() => setState("loading")}>
+          Veriyi getir
+        </Button>
+      </div>
+      <div className="min-h-24 rounded-card border border-border p-4">
+        {state === "idle" && <EmptyState size="sm" icon={false} title="Henüz veri yok" description="Getirmek için butona bas." />}
+        {state === "loading" && <LoadingState variant="skeleton" avatar lines={2} label="Kullanıcı getiriliyor" />}
+        {state === "done" && (
+          <div className="flex items-center gap-3">
+            <span className="flex size-10 items-center justify-center rounded-full bg-primary-soft font-semibold text-primary" aria-hidden="true">
+              ZK
+            </span>
+            <div className="flex flex-col">
+              <span className="font-medium">Zeynep Kaya</span>
+              <span className="text-sm text-fg-muted">Frontend Geliştirici</span>
+            </div>
+            <Badge tone="success" dot className="ml-auto">
+              Aktif
+            </Badge>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function LoadingStateSection() {
+  const [values, setValues] = useUrlValues("loading", loadingControls, loadingDefaults);
+  const variant = values.variant as LoadingStateVariant;
+  return (
+    <ComponentSection
+      id="loading-state"
+      title="Loading State"
+      description="Veri beklenirken kullanıcıya bir şeylerin olduğunu gösterir. role=&quot;status&quot; ile ekran okuyucuya duyurulur. Üç biçimi var: spinner, skeleton (içerik iskeleti) ve overlay (mevcut içeriğin üstüne perde)."
+      controls={loadingControls}
+      values={values}
+      defaults={loadingDefaults}
+      onValuesChange={setValues}
+      preview={
+        <div className="w-full max-w-sm">
+          <LoadingState
+            variant={variant}
+            label={(values.label as string) || "Yükleniyor…"}
+            hideLabel={values.hideLabel as boolean}
+            size={values.size as LoadingStateSize}
+            lines={Number(values.lines)}
+            avatar={values.avatar as boolean}
+            className={variant === "overlay" ? "rounded-card" : undefined}
+          >
+            {variant === "overlay" ? <FakeCard /> : undefined}
+          </LoadingState>
+        </div>
+      }
+      code={loadingCode(values)}
+      guidance={{
+        use: [
+          "skeleton: içeriğin şekli belliyse (liste, kart, profil); sayfa zıplamaz.",
+          "spinner: şekli belli olmayan veya kısa beklemeler için (bir panel, bir arama).",
+          "overlay: kullanıcı içeriği görürken kaydetme gibi bir işlem sürüyorsa; içerik kilitlenir.",
+        ],
+        avoid: [
+          "Bir butonun kendi işlemi için (Button'ın loading prop'unu kullan).",
+          "Çok kısa (300 ms altı) işlemler için; göz kırpması gibi görünür, gecikmeli göster.",
+          "Aynı ekranda birden fazla spinner ile; tek bir yükleme durumu yeterli.",
+        ],
+      }}
+      examples={[
+        {
+          title: "Spinner boyutları",
+          content: (
+            <>
+              <LoadingState size="sm" hideLabel label="Küçük yükleniyor" className="p-2" />
+              <LoadingState size="md" label="Orta" className="p-2" />
+              <LoadingState size="lg" label="Büyük" className="p-2" />
+            </>
+          ),
+        },
+        {
+          title: "Skeleton parçaları ile özel iskelet (kart)",
+          content: (
+            <div role="status" aria-label="Kart yükleniyor" className="flex w-full max-w-xs flex-col gap-3 rounded-card border border-border p-4">
+              <Skeleton height="8rem" className="rounded-control" />
+              <Skeleton width="70%" height="1rem" />
+              <Skeleton width="45%" />
+            </div>
+          ),
+        },
+        { title: "Gerçek akış: boş → yükleniyor → içerik", content: <FetchDemo /> },
+      ]}
+      props={[
+        { name: "variant", type: '"spinner" | "skeleton" | "overlay"', default: '"spinner"', description: "Yükleme biçimi" },
+        { name: "label", type: "string", default: '"Yükleniyor…"', description: "Ekran okuyucu metni; spinner/overlay'de ekranda da görünür" },
+        { name: "hideLabel", type: "boolean", default: "false", description: "Metni ekranda gizler, ekran okuyucu yine duyar" },
+        { name: "size", type: '"sm" | "md" | "lg"', default: '"md"', description: "Spinner boyutu" },
+        { name: "lines", type: "number", default: "3", description: "skeleton: satır sayısı; son satır kısa çizilir" },
+        { name: "avatar", type: "boolean", default: "false", description: "skeleton: başta daire" },
+        { name: "loading", type: "boolean", default: "true", description: "overlay: perde görünür mü; açıkken içerik inert (kilitli)" },
+        { name: "children", type: "ReactNode", description: "overlay: üstüne perde inecek içerik" },
+        { name: "<Skeleton>", type: "width, height, circle", description: "Özel iskeletler kurmak için tek parça" },
+      ]}
+    />
+  );
+}
+
 /* ---------- Sayfa ---------- */
 
 function ThemeButton() {
@@ -980,12 +1452,15 @@ export function App() {
           </span>
           <span className="truncate text-xs text-fg-muted">Mini Design System</span>
         </a>
-        <nav aria-label="Bileşenler" className="order-last flex w-full items-center gap-1 text-sm sm:order-none sm:w-auto">
+        <nav aria-label="Bileşenler" className="order-last flex w-full items-center gap-1 overflow-x-auto text-sm sm:order-none sm:w-auto">
           <a href="#button" className="rounded-control px-3 py-1.5 text-fg-muted hover:bg-white/8 hover:text-fg">Button</a>
           <a href="#toast" className="rounded-control px-3 py-1.5 text-fg-muted hover:bg-white/8 hover:text-fg">Toast</a>
           <a href="#input" className="rounded-control px-3 py-1.5 text-fg-muted hover:bg-white/8 hover:text-fg">Input</a>
           <a href="#select" className="rounded-control px-3 py-1.5 text-fg-muted hover:bg-white/8 hover:text-fg">Select</a>
           <a href="#modal" className="rounded-control px-3 py-1.5 text-fg-muted hover:bg-white/8 hover:text-fg">Modal</a>
+          <a href="#badge" className="rounded-control px-3 py-1.5 text-fg-muted hover:bg-white/8 hover:text-fg">Badge</a>
+          <a href="#empty-state" className="rounded-control px-3 py-1.5 whitespace-nowrap text-fg-muted hover:bg-white/8 hover:text-fg">Empty State</a>
+          <a href="#loading-state" className="rounded-control px-3 py-1.5 whitespace-nowrap text-fg-muted hover:bg-white/8 hover:text-fg">Loading State</a>
         </nav>
         <ThemeButton />
       </header>
@@ -995,6 +1470,9 @@ export function App() {
         <InputSection />
         <SelectSection />
         <ModalSection />
+        <BadgeSection />
+        <EmptyStateSection />
+        <LoadingStateSection />
       </main>
     </div>
   );
