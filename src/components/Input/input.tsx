@@ -76,8 +76,8 @@ export function Input({
               ? "border-danger focus-visible:outline-danger"
               : "border-border-strong hover:bg-surface/80",
             sizeClasses[size],
-            leftIcon && "pl-9",
-            rightIcon && "pr-9",
+            !!leftIcon && "pl-9",
+            !!rightIcon && "pr-9",
             className,
           )}
           {...rest}
