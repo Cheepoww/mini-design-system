@@ -114,6 +114,24 @@ describe("Başlık", () => {
     expect(toggle).toHaveFocus();
   });
 
+  it("? tuşu klavye kısayolları penceresini açar; yazı alanında açmaz", () => {
+    const { container } = renderApp();
+    const dialog = container.querySelector("dialog")!;
+    expect(dialog).not.toHaveAttribute("open");
+
+    const input = within(screen.getByRole("region", { name: "Button" })).getByLabelText("children");
+    fireEvent.keyDown(input, { key: "?" });
+    expect(dialog).not.toHaveAttribute("open");
+
+    fireEvent.keyDown(document.body, { key: "?" });
+    expect(dialog).toHaveAttribute("open");
+    expect(within(dialog).getByRole("heading", { name: "Klavye kısayolları" })).toBeInTheDocument();
+    expect(within(dialog).getByText("Bildirimlere atla")).toBeInTheDocument();
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "Kapat" }));
+    expect(dialog).not.toHaveAttribute("open");
+  });
+
   it("bölüm bağlantıları başlıkta sırayla yer alır", () => {
     renderApp();
     const nav = screen.getByRole("navigation", { name: "Bileşenler" });

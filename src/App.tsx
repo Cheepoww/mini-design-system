@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { MouseEvent, ReactNode } from "react";
 import { Button, ButtonGroup, ConfirmButton, IconButton, ToggleButton, TOAST_CLOSE_REASON_LABELS, ToastHistory, ToastHistoryButton, ToastProvider, useToast } from "./components";
 import type { ButtonSize, ButtonVariant, ToastId, ToastPosition, ToastTone } from "./components";
 import { cn } from "./lib/cn";
+import { formatShortcut, isTypingTarget, parseShortcut } from "./lib/shortcut";
 
 /*
   Button ve Toast için playground sayfası:
@@ -1533,6 +1534,103 @@ function ThemeButton() {
   );
 }
 
+const KeyboardIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <rect x="3" y="6" width="18" height="12" rx="2" />
+    <path d="M7 10h.01M11 10h.01M15 10h.01M7 14h10" />
+  </svg>
+);
+const CloseIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" aria-hidden="true">
+    <path d="M6 6l12 12M18 6L6 18" />
+  </svg>
+);
+
+const Kbd = ({ children }: { children: ReactNode }) => (
+  <kbd className="inline-flex min-w-6 items-center justify-center rounded-md border border-border-strong/60 bg-surface/60 px-1.5 py-0.5 font-sans text-xs font-medium text-fg">
+    {children}
+  </kbd>
+);
+
+/**
+ * Klavye kısayolları rehberi: "?" tuşu ya da başlıktaki klavye düğmesi açar.
+ * Tarayıcının kendi <dialog> öğesi kullanılır: odak içeride tutulur, Esc kapatır, kapanınca odak açan düğmeye döner.
+ */
+function ShortcutsHelp() {
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const open = () => {
+    const d = dialogRef.current;
+    if (!d || d.open) return;
+    if (typeof d.showModal === "function") d.showModal();
+    else d.setAttribute("open", ""); // showModal desteklemeyen ortam (ör. test)
+  };
+  const close = () => {
+    const d = dialogRef.current;
+    if (!d) return;
+    if (typeof d.close === "function") d.close();
+    else d.removeAttribute("open");
+  };
+  useEffect(() => {
+    const onKey = (e: globalThis.KeyboardEvent) => {
+      if (e.key !== "?" || e.ctrlKey || e.metaKey || e.altKey || isTypingTarget(e.target)) return;
+      e.preventDefault();
+      open();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+  const save = formatShortcut(parseShortcut("Mod+S"));
+  const rows: { keys: ReactNode; what: string }[] = [
+    { keys: <Kbd>?</Kbd>, what: "Bu listeyi aç" },
+    { keys: <><Kbd>Tab</Kbd> <Kbd>Shift</Kbd>+<Kbd>Tab</Kbd></>, what: "Öğeler arasında ileri / geri git" },
+    { keys: <><Kbd>Enter</Kbd> <Kbd>Boşluk</Kbd></>, what: "Odaktaki butona bas" },
+    { keys: <><Kbd>←</Kbd> <Kbd>→</Kbd> <Kbd>Home</Kbd> <Kbd>End</Kbd></>, what: "ButtonGroup seçenekleri arasında gez ve seç" },
+    { keys: <Kbd>F8</Kbd>, what: "Bildirimlere atla" },
+    { keys: <Kbd>Esc</Kbd>, what: "Odaktaki bildirimi, açık paneli ya da onay bekleyen butonu kapat" },
+    { keys: <Kbd>{save}</Kbd>, what: "Kaydet (Button bölümündeki kısayol örneği)" },
+  ];
+  return (
+    <>
+      <IconButton
+        icon={<KeyboardIcon />}
+        label="Klavye kısayolları (?)"
+        variant="secondary"
+        size="sm"
+        aria-keyshortcuts="?"
+        // Dokunmatik cihazda klavye yok: düğme gizlenir
+        className="glass rounded-full border-border-strong/55! hover:border-primary/60! pointer-coarse:hidden"
+        onClick={open}
+      />
+      <dialog
+        ref={dialogRef}
+        aria-labelledby="shortcuts-title"
+        // Pencerenin dışına (karartılmış alana) tıklanınca kapanır: o tıklama dialog'un kendisine gelir
+        onClick={(e) => {
+          if (e.target === e.currentTarget) close();
+        }}
+        className="glass-strong m-auto w-[min(30rem,calc(100vw-2rem))] rounded-card p-0 text-fg backdrop:bg-black/40 backdrop:backdrop-blur-sm"
+      >
+        <div className="flex flex-col gap-4 p-5">
+          <div className="flex items-center justify-between gap-3">
+            <h2 id="shortcuts-title" className="font-display text-xl font-light tracking-tight">
+              Klavye kısayolları
+            </h2>
+            <IconButton icon={<CloseIcon />} label="Kapat" size="sm" onClick={close} />
+          </div>
+          <dl className="flex flex-col divide-y divide-border text-sm">
+            {rows.map((r) => (
+              <div key={r.what} className="flex items-center justify-between gap-4 py-2.5">
+                <dt className="text-fg-muted">{r.what}</dt>
+                <dd className="flex shrink-0 flex-wrap items-center justify-end gap-1">{r.keys}</dd>
+              </div>
+            ))}
+          </dl>
+        </div>
+      </dialog>
+    </>
+  );
+}
+
 const sections = [
   { id: "button", label: "Button" },
   { id: "toast", label: "Toast" },
@@ -1605,6 +1703,7 @@ export function App() {
           })}
         </nav>
         <div className="flex items-center gap-2">
+          <ShortcutsHelp />
           <ToastHistoryButton />
           <ThemeButton />
         </div>
