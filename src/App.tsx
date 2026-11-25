@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
-import type { ReactNode } from "react";
-import { Button, ButtonGroup, IconButton, ToastProvider, useToast } from "./components";
-import type { ButtonSize, ButtonVariant, ToastPosition, ToastTone } from "./components";
+import type { MouseEvent, ReactNode } from "react";
+import { Button, ButtonGroup, ConfirmButton, IconButton, TOAST_CLOSE_REASON_LABELS, ToastHistory, ToastProvider, useToast } from "./components";
+import type { ButtonSize, ButtonVariant, ToastId, ToastPosition, ToastTone } from "./components";
 import { cn } from "./lib/cn";
 
 /*
@@ -349,6 +349,11 @@ const EditIcon = () => (
     <path d="M4 20h4L19 9l-4-4L4 16v4z" />
   </svg>
 );
+const CopyIcon = () => (
+  <svg className="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M9 9h10v10H9zM5 15V5h10" />
+  </svg>
+);
 const RefreshIcon = () => (
   <svg className="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
     <path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7" />
@@ -361,7 +366,11 @@ const buttonControls: Control[] = [
   { name: "children", type: "text", hint: "Butonun yazısı" },
   { name: "loading", type: "boolean", hint: "Spinner gösterir, tıklamayı engeller; genişlik sabit kalır" },
   { name: "loadingText", type: "text", hint: "Yüklenirken metnin yerine geçer (loading açıkken görünür)" },
+  { name: "success", type: "boolean", hint: "✓ ikonu gösterir: işlem bitti geri bildirimi; genişlik sabit kalır" },
+  { name: "successText", type: "text", hint: "success açıkken metnin yerine geçer (ör. Kaydedildi)" },
   { name: "disabled", type: "boolean", hint: "Butonu pasif yapar" },
+  { name: "disabledReason", type: "text", hint: "Pasifliğin nedeni: buton odaklanabilir kalır, neden üzerine gelince görünür" },
+  { name: "href", type: "text", hint: "Verilirse <a> (bağlantı) olarak çizilir; görünüm aynı kalır" },
   { name: "fullWidth", type: "boolean", hint: "Bulunduğu alanın tamamını kaplar" },
   { name: "leftIcon", type: "boolean", hint: "Metnin soluna ikon ekler" },
 ];
@@ -371,44 +380,148 @@ const buttonDefaults: Values = {
   children: "Kaydet",
   loading: false,
   loadingText: "",
+  success: false,
+  successText: "",
   disabled: false,
+  disabledReason: "",
+  href: "",
   fullWidth: false,
   leftIcon: false,
 };
 
 function buttonCode(v: Values) {
   const a: string[] = [];
+  if (v.href) a.push(`href="${v.href}"`);
   if (v.variant !== "primary") a.push(`variant="${v.variant}"`);
   if (v.size !== "md") a.push(`size="${v.size}"`);
   if (v.loading) a.push("loading");
   if (v.loadingText) a.push(`loadingText="${v.loadingText}"`);
+  if (v.success) a.push("success");
+  if (v.successText) a.push(`successText="${v.successText}"`);
   if (v.disabled) a.push("disabled");
+  if (v.disabledReason) a.push(`disabledReason="${v.disabledReason}"`);
   if (v.fullWidth) a.push("fullWidth");
   if (v.leftIcon) a.push("leftIcon={<PlusIcon />}");
   return `${a.length ? `<Button ${a.join(" ")}>` : "<Button>"}${v.children}</Button>`;
 }
 
-/** Gerçek kullanım: tıklayınca yükleniyor (genişlik sabit), sonra bildirim */
+/** Bir işlemin üç anı: yükleniyor → ✓ kaydedildi (kısa süre) → normal; genişlik hiç zıplamaz */
 function SaveDemo() {
-  const { toast } = useToast();
-  const [saving, setSaving] = useState(false);
+  const [state, setState] = useState<"idle" | "saving" | "saved">("idle");
+  useEffect(() => {
+    if (state !== "saved") return;
+    const t = window.setTimeout(() => setState("idle"), 1800);
+    return () => window.clearTimeout(t);
+  }, [state]);
   return (
-    <div className="flex items-center gap-3">
+    <div className="flex flex-wrap items-center gap-3">
       <Button
-        loading={saving}
+        loading={state === "saving"}
         loadingText="Kaydediliyor…"
+        success={state === "saved"}
+        successText="Kaydedildi"
         onClick={() => {
-          setSaving(true);
-          window.setTimeout(() => {
-            setSaving(false);
-            toast({ tone: "success", title: "Değişiklikler kaydedildi" });
-          }, 1200);
+          if (state !== "idle") return;
+          setState("saving");
+          window.setTimeout(() => setState("saved"), 1200);
         }}
       >
         Değişiklikleri kaydet
       </Button>
-      <span className="text-sm text-fg-muted">Yanındaki yazı yerinde kalır, buton genişliği zıplamaz.</span>
+      <span className="text-sm text-fg-muted">Sonuç butonun üstünde görünür; yanındaki yazı yerinde kalır.</span>
     </div>
+  );
+}
+
+/** Küçük, sık işlemlerde (kopyala) bildirim yerine butonun kendisi geri bildirim verir */
+function CopyDemo() {
+  const [copied, setCopied] = useState<string | null>(null);
+  useEffect(() => {
+    if (!copied) return;
+    const t = window.setTimeout(() => setCopied(null), 1500);
+    return () => window.clearTimeout(t);
+  }, [copied]);
+  const copy = (key: string, text: string) => {
+    navigator.clipboard?.writeText(text).catch(() => {});
+    setCopied(key);
+  };
+  return (
+    <>
+      <Button variant="secondary" success={copied === "link"} successText="Kopyalandı" onClick={() => copy("link", window.location.href)}>
+        Bağlantıyı kopyala
+      </Button>
+      <IconButton icon={<CopyIcon />} label="Kodu kopyala" variant="secondary" success={copied === "code"} onClick={() => copy("code", "<Button>Kaydet</Button>")} />
+    </>
+  );
+}
+
+/** Pasif butonun nedeni: odaklanınca / üzerine gelince / dokununca görünür, ekran okuyucu da okur */
+function DisabledReasonDemo() {
+  const { toast } = useToast();
+  const [accepted, setAccepted] = useState(false);
+  return (
+    <div className="flex flex-wrap items-center gap-4">
+      <label className="flex items-center gap-2 text-sm">
+        <input type="checkbox" className="size-4 accent-primary" checked={accepted} onChange={(e) => setAccepted(e.target.checked)} />
+        Kullanım koşullarını kabul ediyorum
+      </label>
+      <Button
+        disabled={!accepted}
+        disabledReason="Önce kullanım koşullarını kabul edin"
+        onClick={() => toast({ tone: "success", title: "Hesap oluşturuldu", duration: 2500 })}
+      >
+        Hesap oluştur
+      </Button>
+      <span className="w-full text-sm text-fg-muted">Tab ile butona gel: neden görünür. Kutuyu işaretleyince buton çalışır.</span>
+    </div>
+  );
+}
+
+/** Onaylı silme: ilk tıklama "Emin misin?", ikinci tıklama siler; 3 sn içinde basılmazsa vazgeçilir */
+function ConfirmDemo() {
+  const { toast } = useToast();
+  const [projects, setProjects] = useState(["Eski kampanya", "Deneme projesi"]);
+  return (
+    <ul className="flex w-full max-w-md flex-col divide-y divide-border rounded-card border border-border">
+      {projects.length === 0 && (
+        <li className="flex items-center justify-between gap-3 px-3 py-2 text-sm text-fg-muted">
+          Proje kalmadı.
+          <Button size="sm" variant="ghost" onClick={() => setProjects(["Eski kampanya", "Deneme projesi"])}>
+            Geri yükle
+          </Button>
+        </li>
+      )}
+      {projects.map((p) => (
+        <li key={p} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
+          {p}
+          <ConfirmButton
+            size="sm"
+            leftIcon={<TrashIcon />}
+            onConfirm={() => {
+              setProjects((list) => list.filter((x) => x !== p));
+              toast({ tone: "danger", title: `"${p}" kalıcı olarak silindi`, duration: 2500 });
+            }}
+          >
+            {/* Görünen yazı "Kalıcı sil"; ekran okuyucu hangi projenin silineceğini de duyar */}
+            Kalıcı sil<span className="sr-only"> {p}</span>
+          </ConfirmButton>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/** Bağlantı olarak buton: href verilince <a> çizilir (sağ tık → yeni sekmede aç çalışır) */
+function LinkDemo() {
+  return (
+    <>
+      <Button href="#toast" variant="secondary" rightIcon={<ArrowIcon />}>
+        Toast bölümüne git
+      </Button>
+      <Button href="#toast" variant="ghost" disabled disabledReason="Bu bağlantı şu an kapalı">
+        Kapalı bağlantı
+      </Button>
+    </>
   );
 }
 
@@ -476,6 +589,38 @@ function ActionGroupDemo() {
   );
 }
 
+/** Kontrollerdeki değerlerle çizilen önizleme butonu; href doluysa bağlantı hâli */
+function ButtonPreview({ values, onPress }: { values: Values; onPress: (title: string) => () => void }) {
+  const common = {
+    variant: values.variant as ButtonVariant,
+    size: values.size as ButtonSize,
+    loading: values.loading as boolean,
+    loadingText: (values.loadingText as string) || undefined,
+    success: values.success as boolean,
+    successText: (values.successText as string) || undefined,
+    disabled: values.disabled as boolean,
+    disabledReason: (values.disabledReason as string) || undefined,
+    fullWidth: values.fullWidth as boolean,
+    leftIcon: values.leftIcon ? <PlusIcon /> : undefined,
+    children: values.children as string,
+  };
+  const href = values.href as string;
+  if (href) {
+    // Önizlemedeki bağlantı sayfadan çıkarmasın: tıklama yalnızca nereye gideceğini söyler
+    return (
+      <Button
+        {...common}
+        href={href}
+        onClick={(e: MouseEvent<HTMLElement>) => {
+          e.preventDefault();
+          onPress(`Bağlantı: ${href} adresine giderdi`)();
+        }}
+      />
+    );
+  }
+  return <Button {...common} onClick={onPress(`"${values.children}" tıklandı`)} />;
+}
+
 function ButtonSection() {
   const { toast } = useToast();
   const [values, setValues] = useUrlValues("button", buttonControls, buttonDefaults);
@@ -484,25 +629,14 @@ function ButtonSection() {
     <ComponentSection
       id="button"
       title="Button"
-      description="Kullanıcının bir eylem başlatması için. Dört varyant, üç boyut; disabled ve loading durumlarını destekler. Başka bir sayfaya gitmek için buton değil bağlantı kullan (buttonClasses ile buton görünümü verilebilir)."
+      description="Kullanıcının bir eylem başlatması için. Dört varyant, üç boyut; loading, success ve disabled durumlarını destekler. Pasifse nedenini söyleyebilir (disabledReason). href verilince bağlantı (<a>) olarak çizilir. Geri alınamaz işlemler için iki adımlı ConfirmButton vardır."
       controls={buttonControls}
       values={values}
       defaults={buttonDefaults}
       onValuesChange={setValues}
       preview={
         <div className={cn(values.fullWidth && "w-full max-w-sm")}>
-          <Button
-            variant={values.variant as ButtonVariant}
-            size={values.size as ButtonSize}
-            loading={values.loading as boolean}
-            loadingText={(values.loadingText as string) || undefined}
-            disabled={values.disabled as boolean}
-            fullWidth={values.fullWidth as boolean}
-            leftIcon={values.leftIcon ? <PlusIcon /> : undefined}
-            onClick={say(`"${values.children}" tıklandı`)}
-          >
-            {values.children as string}
-          </Button>
+          <ButtonPreview values={values} onPress={say} />
         </div>
       }
       code={buttonCode(values)}
@@ -510,16 +644,20 @@ function ButtonSection() {
         use: [
           "Bir işlemi başlatmak için: kaydet, gönder, sil, aç.",
           "Sayfadaki en önemli işlem için primary; ikincil işlemler için secondary veya ghost.",
-          "Geri alınamaz işlemler için danger (ör. hesabı sil).",
+          "Geri alınamaz işlemler için danger; tek tıkla yanlışlıkla yapılmasın diye ConfirmButton (ör. kalıcı sil).",
+          "Küçük, sık işlemlerin sonucunu (kopyalandı) bildirim yerine butonun kendisinde göstermek için success.",
+          "Bir koşul sağlanana kadar kullanılamayan buton için disabled + disabledReason (neden söylenir).",
+          "Buton görünümünde ama başka sayfaya götüren öğe için href (bağlantı olarak çizilir).",
           "Yer darsa ve ikon herkesçe biliniyorsa IconButton (düzenle, sil, yenile).",
           "Aynı konuya ait birkaç seçenekten biri seçilecekse ButtonGroup (Gün / Hafta / Ay).",
         ],
         avoid: [
-          "Başka bir sayfaya gitmek için: bağlantı (<a>) kullan; buton görünümü gerekiyorsa buttonClasses() ile ver.",
+          "Başka bir sayfaya gitmek için onClick ile yönlendirme: href ver, sağ tık → yeni sekmede aç da çalışsın.",
           "Aynı alanda birden fazla primary buton: kullanıcı asıl işlemin hangisi olduğunu anlayamaz.",
           "Etiketsiz ikon butonu: IconButton'da label zorunlu, ekran okuyucu onu okur.",
-          "Butonu pasif yapıp nedenini söylememek: yanında kısa bir açıklama göster.",
+          "Butonu pasif yapıp nedenini söylememek: disabledReason ver.",
           "Uzun işlemlerde loading olmadan bırakmak: kullanıcı tekrar tekrar tıklar.",
+          "Geri alınabilen işlemde ConfirmButton: gereksiz ikinci tık; işlemi yap, bildirimde \"Geri al\" sun.",
         ],
       }}
       examples={[
@@ -563,7 +701,11 @@ function ButtonSection() {
             </>
           ),
         },
-        { title: "Gerçek kullanım: kaydet → yükleniyor (loadingText) → bildirim", content: <SaveDemo /> },
+        { title: "Gerçek kullanım: kaydet → yükleniyor (loadingText) → ✓ kaydedildi (success) → normal", content: <SaveDemo /> },
+        { title: "Başarı geri bildirimi: kopyala → ✓ kopyalandı (bildirim açmadan)", content: <CopyDemo /> },
+        { title: "Nedenini söyleyen pasif buton (disabledReason)", content: <DisabledReasonDemo /> },
+        { title: "ConfirmButton: iki adımlı onay (3 sn içinde tekrar bas; Esc veya dışarı tıklayınca vazgeçilir)", content: <ConfirmDemo /> },
+        { title: "Bağlantı olarak buton (href → <a>)", content: <LinkDemo /> },
         { title: "IconButton: yalnızca ikon (label zorunlu, üzerine gelince ipucu)", content: <IconButtonDemo /> },
         { title: "ButtonGroup: tek seçim (ok tuşlarıyla gezilir, pasif seçenek atlanır)", content: <RangeDemo /> },
         { title: "ButtonGroup: yapışık eylem butonları", content: <ActionGroupDemo /> },
@@ -573,13 +715,19 @@ function ButtonSection() {
         { name: "size", type: '"sm" | "md" | "lg"', default: '"md"', description: "Yükseklik ve yazı boyutu" },
         { name: "loading", type: "boolean", default: "false", description: "Spinner gösterir, tıklamayı engeller, aria-busy ekler; yükleme öncesi genişlik korunur" },
         { name: "loadingText", type: "ReactNode", description: "Yüklenirken metnin yerine gösterilir (ör. \"Kaydediliyor…\")" },
+        { name: "success", type: "boolean", default: "false", description: "✓ ikonu gösterir (işlem bitti); genişlik korunur. Kısa süre sonra false yapmak sana kalır" },
+        { name: "successText", type: "ReactNode", description: "success iken metnin yerine gösterilir (ör. \"Kaydedildi\"); değişiklik ekran okuyucuya duyurulur" },
         { name: "disabled", type: "boolean", default: "false", description: "Butonu pasif yapar" },
-        { name: "leftIcon / rightIcon", type: "ReactNode", description: "Metnin solunda / sağında ikon; loading iken sol ikonun yerini spinner alır" },
+        { name: "disabledReason", type: "string", description: "Pasifliğin nedeni. Verilirse buton Tab ile odaklanabilir kalır ama çalışmaz; neden üzerine gelince, odaklanınca ve dokununca görünür, ekran okuyucuya açıklama olarak okunur" },
+        { name: "href", type: "string", description: "Verilirse <a> çizilir (target, rel gibi bağlantı prop'ları da geçer). Pasifken href kaldırılır" },
+        { name: "leftIcon / rightIcon", type: "ReactNode", description: "Metnin solunda / sağında ikon; loading iken sol ikonun yerini spinner, success iken ✓ alır" },
         { name: "fullWidth", type: "boolean", default: "false", description: "Genişliği %100 yapar" },
         { name: "type", type: '"button" | "submit" | "reset"', default: '"button"', description: "Form içinde yanlışlıkla gönderim olmasın diye varsayılan button" },
-        { name: "...rest", type: "ButtonHTMLAttributes", description: "onClick, aria-* gibi tüm native prop'lar" },
-        { name: "ref", type: "Ref<HTMLButtonElement>", description: "Butona doğrudan erişim (ör. odak vermek)" },
-        { name: "buttonClasses()", type: "({ variant, size, fullWidth }) => string", description: "Bağlantıya buton görünümü vermek için sınıflar" },
+        { name: "...rest", type: "ButtonHTMLAttributes | AnchorHTMLAttributes", description: "onClick, aria-* gibi tüm native prop'lar (href varsa bağlantınınkiler)" },
+        { name: "ref", type: "Ref<HTMLButtonElement | HTMLAnchorElement>", description: "Öğeye doğrudan erişim (ör. odak vermek)" },
+        { name: "buttonClasses()", type: "({ variant, size, fullWidth }) => string", description: "Başka bir öğeye (ör. dosya seçen <label>) buton görünümü vermek için sınıflar" },
+        { name: "<ConfirmButton onConfirm>", type: "() => void", description: "İki adımlı buton: ilk tıklama onay ister, ikinci tıklama onConfirm'i çağırır. Çift tıklama sayılmaz" },
+        { name: "<ConfirmButton confirmText confirmTimeout>", type: "ReactNode, number", default: '"Emin misin? Tekrar bas", 3000', description: "Onay beklerken yazı ve bekleme süresi (ms); süre dolunca, odak ayrılınca veya Esc ile vazgeçilir" },
         { name: "<IconButton icon label>", type: "ReactNode, string", description: "Kare, yalnızca ikonlu buton; label zorunlu (ekran okuyucu adı + ipucu). Varsayılan varyant ghost" },
         { name: "<ButtonGroup label>", type: "string", description: "Grubun ekran okuyucu adı (zorunlu)" },
         { name: "<ButtonGroup options value onValueChange>", type: "{ value, label, disabled? }[]", description: "Verilirse tek seçimli grup (radyo grubu); verilmezse içindeki Button'lar yapışık dizilir" },
@@ -596,7 +744,9 @@ const toastControls: Control[] = [
   { name: "description", type: "text", hint: "Başlığın altındaki ikinci satır (isteğe bağlı)" },
   { name: "duration", type: "select", options: ["2000", "4000", "8000", "0"], hint: "Kaç ms sonra kapanır; 0 = kendiliğinden kapanmaz" },
   { name: "action", type: "boolean", hint: "\"Geri al\" gibi tek bir eylem düğmesi ekler" },
+  { name: "dismissible", type: "boolean", hint: "Kapalıysa kullanıcı kapatamaz ve süreyle kapanmaz; yalnızca kod kapatır" },
   { name: "position", type: "select", options: ["bottom-right", "top-right", "top-center", "bottom-center"], hint: "Bildirimlerin ekrandaki yeri (ToastProvider)" },
+  { name: "stack", type: "boolean", hint: "Yığın görünümü: bildirimler deste gibi durur, üzerine gelince açılır (ToastProvider)" },
 ];
 const toastDefaults: Values = {
   tone: "success",
@@ -604,7 +754,9 @@ const toastDefaults: Values = {
   description: "Profil bilgilerin güncellendi.",
   duration: "4000",
   action: false,
+  dismissible: true,
   position: "bottom-right",
+  stack: false,
 };
 
 function toastCode(v: Values) {
@@ -612,26 +764,59 @@ function toastCode(v: Values) {
   if (v.description) a.push(`description: "${v.description}"`);
   if (v.duration !== "4000") a.push(`duration: ${v.duration}`);
   if (v.action) a.push(`action: { label: "Geri al", onClick: undo }`);
-  const pos = v.position !== "bottom-right" ? ` position="${v.position}"` : "";
-  return `// main.tsx (bir kez)\n<ToastProvider${pos}>\n  <App />\n</ToastProvider>\n\n// herhangi bir bileşende\nconst { toast } = useToast();\n\ntoast({\n  ${a.join(",\n  ")},\n});`;
+  if (!v.dismissible) a.push("dismissible: false");
+  const p = [v.position !== "bottom-right" && ` position="${v.position}"`, v.stack && " stack"].filter(Boolean).join("");
+  const closeNote = v.dismissible ? "" : `\n\n// Sorun çözülünce kod kapatır\ndismiss(id);`;
+  return `// main.tsx (bir kez)\n<ToastProvider${p}>\n  <App />\n</ToastProvider>\n\n// herhangi bir bileşende\nconst { toast${v.dismissible ? "" : ", dismiss"} } = useToast();\n\n${v.dismissible ? "" : "const id = "}toast({\n  ${a.join(",\n  ")},\n});${closeNote}`;
 }
 
 function ToastTrigger({ v }: { v: Values }) {
-  const { toast } = useToast();
+  const { toast, dismissAll, dismiss } = useToast();
+  const [lockedId, setLockedId] = useState<ToastId | null>(null);
   return (
-    <Button
-      onClick={() =>
-        toast({
-          tone: v.tone as ToastTone,
-          title: (v.title as string) || "Bildirim",
-          description: (v.description as string) || undefined,
-          duration: Number(v.duration),
-          action: v.action ? { label: "Geri al", onClick: () => toast({ title: "Geri alındı", duration: 2000 }) } : undefined,
-        })
-      }
-    >
-      Toast göster
-    </Button>
+    <div className="flex flex-wrap items-center justify-center gap-2">
+      <Button
+        onClick={() => {
+          const id = toast({
+            tone: v.tone as ToastTone,
+            title: (v.title as string) || "Bildirim",
+            description: (v.description as string) || undefined,
+            // Kapatılamayan bildirim süreyle de kapanmaz (yoksa kullanıcı kaçırırdı)
+            duration: v.dismissible ? Number(v.duration) : 0,
+            dismissible: v.dismissible as boolean,
+            action: v.action ? { label: "Geri al", onClick: () => toast({ title: "Geri alındı", duration: 2000 }) } : undefined,
+          });
+          if (!v.dismissible) setLockedId(id);
+        }}
+      >
+        Toast göster
+      </Button>
+      {/* Kapatılamayan bildirimi kapatmanın tek yolu kod: önizlemede bunu bir düğme yapar */}
+      {lockedId !== null && (
+        <Button
+          variant="secondary"
+          onClick={() => {
+            dismiss(lockedId);
+            setLockedId(null);
+          }}
+        >
+          Kodla kapat
+        </Button>
+      )}
+      {v.stack && (
+        <Button
+          variant="secondary"
+          onClick={() => {
+            dismissAll();
+            ["Yeni mesaj", "Yorum eklendi", "Dosya yüklendi"].forEach((title, i) =>
+              window.setTimeout(() => toast({ title, description: "Desteyi açmak için üzerine gel.", duration: 8000 }), i * 150),
+            );
+          }}
+        >
+          3 bildirimle dene
+        </Button>
+      )}
+    </div>
   );
 }
 
@@ -653,15 +838,6 @@ function AllTones() {
     </>
   );
 }
-
-const closeReasonLabels: Record<string, string> = {
-  timeout: "süre doldu",
-  close: "× ile kapatıldı",
-  swipe: "kaydırılarak kapatıldı",
-  escape: "Esc ile kapatıldı",
-  dismiss: "kodla kapatıldı",
-  dismissAll: "tümü kapatıldı",
-};
 
 const sampleFiles = ["Tasarım taslağı", "Toplantı notları", "Bütçe tablosu"];
 
@@ -691,7 +867,7 @@ function UndoDemo() {
       },
       onClose: (reason) =>
         setLog((p) =>
-          [reason === "action" ? `"${name}" geri alındı` : `"${name}" kalıcı olarak silindi (${closeReasonLabels[reason]})`, ...p].slice(0, 4),
+          [reason === "action" ? `"${name}" geri alındı` : `"${name}" kalıcı olarak silindi (${TOAST_CLOSE_REASON_LABELS[reason]})`, ...p].slice(0, 4),
         ),
     });
   };
@@ -816,20 +992,92 @@ function DismissAllDemo() {
   );
 }
 
+/**
+ * Kapatılamayan önemli bildirim: bağlantı koptukça ekranda kalır (× yok, süre yok, kaydırılamaz).
+ * Bağlantı gelince AYNI bildirim güncellenir ve normal bir bildirime dönüp kendiliğinden kapanır.
+ */
+function ConnectionDemo() {
+  const { toast, update } = useToast();
+  const [online, setOnline] = useState(true);
+  return (
+    <>
+      <Button
+        variant={online ? "secondary" : "primary"}
+        onClick={() => {
+          if (online) {
+            toast({ id: "connection", tone: "danger", title: "Bağlantı koptu", description: "Yeniden bağlanılıyor… Değişikliklerin bu cihazda saklanıyor.", dismissible: false });
+          } else {
+            update("connection", { tone: "success", title: "Bağlantı geri geldi", description: "Değişikliklerin gönderildi.", dismissible: true });
+          }
+          setOnline(!online);
+        }}
+      >
+        {online ? "Bağlantıyı kopar" : "Bağlantıyı geri getir"}
+      </Button>
+      <span className="text-sm text-fg-muted" aria-live="polite">
+        Durum: {online ? "çevrimiçi" : "çevrimdışı (bildirim kapatılamaz, \"Tümünü kapat\" da dokunmaz)"}
+      </span>
+    </>
+  );
+}
+
+/** Yığın görünümü: kendi Provider'ı (stack) ile, sayfadaki diğer bildirimlerle karışmasın diye üstte ortada */
+function StackDemoButtons() {
+  const { toast } = useToast();
+  const [n, setN] = useState(0);
+  return (
+    <>
+      <Button
+        variant="secondary"
+        onClick={() => {
+          const titles = ["Ayşe bir yorum yaptı", "Rapor hazır", "Yeni üye katıldı", "Yedekleme tamamlandı"];
+          titles.forEach((title, i) =>
+            window.setTimeout(() => toast({ title: `${title} (${n + i + 1})`, tone: i === 1 ? "success" : "info", duration: 8000 }), i * 200),
+          );
+          setN(n + titles.length);
+        }}
+      >
+        4 bildirim gönder (üstte)
+      </Button>
+      <span className="text-sm text-fg-muted">Deste üstte ortada belirir; üzerine gel, Tab ile gir ya da dokun: açılır ve süreler durur.</span>
+    </>
+  );
+}
+function StackDemo() {
+  return (
+    <ToastProvider stack position="top-center" label="Yığın örneği bildirimleri" hotkey={false}>
+      <StackDemoButtons />
+    </ToastProvider>
+  );
+}
+
+/** Sekme gizliyken süre işlemez: bildirimi gönder, başka sekmeye geç, dön */
+function HiddenTabDemo() {
+  const { toast } = useToast();
+  return (
+    <>
+      <Button variant="secondary" onClick={() => toast({ title: "Sen yokken geldi", description: "Başka sekmedeyken süre işlemedi; hâlâ buradayım.", duration: 5000 })}>
+        5 sn'lik bildirim gönder
+      </Button>
+      <span className="text-sm text-fg-muted">Gönderdikten hemen sonra başka sekmeye geç, birkaç saniye bekle, geri dön: bildirim hâlâ duruyor.</span>
+    </>
+  );
+}
+
 function ToastSection() {
   const [values, setValues] = useUrlValues("toast", toastControls, toastDefaults);
   return (
     <ComponentSection
       id="toast"
       title="Toast"
-      description="İşlem sonucu gibi kısa, akışı bölmeyen bildirimler. Uygulama bir kez <ToastProvider> ile sarılır, sonra her yerden useToast() ile çağrılır. Süre dolunca kendiliğinden kapanır; × ile, Esc ile ya da telefonda yana kaydırarak kapatılır; fare üzerindeyken süre durur. Aynı anda en fazla 4 tane görünür, fazlası sırada bekler."
+      description="İşlem sonucu gibi kısa, akışı bölmeyen bildirimler. Uygulama bir kez <ToastProvider> ile sarılır, sonra her yerden useToast() ile çağrılır. Süre dolunca kendiliğinden kapanır; × ile, Esc ile ya da telefonda yana kaydırarak kapatılır; fare üzerindeyken ve sekme arka plandayken süre durur. Aynı anda en fazla 4 tane görünür, fazlası sırada bekler. İstenirse deste gibi yığılır; kapananlar geçmişte okunabilir."
       controls={toastControls}
       values={values}
       defaults={toastDefaults}
       onValuesChange={setValues}
       // Konum Provider'a ait olduğu için önizleme kendi Provider'ını kullanır
       preview={
-        <ToastProvider position={values.position as ToastPosition} label="Önizleme bildirimleri">
+        <ToastProvider position={values.position as ToastPosition} stack={values.stack as boolean} label="Önizleme bildirimleri">
           <ToastTrigger v={values} />
         </ToastProvider>
       }
@@ -839,9 +1087,12 @@ function ToastSection() {
           "Bir işlemin sonucunu kısa süreliğine bildirmek için: kaydedildi, davet gönderildi.",
           "Geri alınabilir işlemlerde \"Geri al\" eylemi sunmak için.",
           "Arka planda süren bir işlemi izlemek için (toast.promise: Kaydediliyor… → Kaydedildi).",
+          "Sürdükçe görünmesi gereken bir durum için dismissible: false (ör. bağlantı koptu); düzelince kod günceller.",
+          "Çok sayıda bildirim gelen ekranlarda stack (deste) ve kaçırılanlar için <ToastHistory />.",
         ],
         avoid: [
-          "Kullanıcının kaçırmaması gereken önemli bilgi için: bildirim kendiliğinden kaybolur; sayfada kalıcı bir uyarı göster.",
+          "Kullanıcının mutlaka okuması gereken bilgi için süreli bildirim: kaybolur. dismissible: false ver ya da sayfada kalıcı uyarı göster.",
+          "Kullanıcının kendi kapatabileceği bildirimde dismissible: false: × olmadan ekranda takılı kalır, rahatsız eder.",
           "Kullanıcıdan onay almak için (ör. \"Silmek istediğine emin misin?\"): onay penceresi kullan.",
           "Form alanı hatalarını göstermek için: hata, ilgili alanın hemen altında olmalı.",
           "Aynı mesajı üst üste yığmak için: sabit bir id ver, mevcut bildirim güncellensin.",
@@ -854,6 +1105,10 @@ function ToastSection() {
         { title: "Tekrarı önleme: aynı id ile gönderilen bildirim yığılmaz, güncellenir", content: <DedupeDemo /> },
         { title: "Sıra: fazla bildirim atılmaz, sırada bekler", content: <QueueDemo /> },
         { title: "Tümünü kapat ve klavye kısayolları", content: <DismissAllDemo /> },
+        { title: "Kapatılamayan önemli bildirim (dismissible: false): sorun çözülünce kod günceller", content: <ConnectionDemo /> },
+        { title: "Yığın görünümü (stack): deste gibi durur, üzerine gelince açılır", content: <StackDemo /> },
+        { title: "Sekme gizliyken süre durur", content: <HiddenTabDemo /> },
+        { title: "Bildirim geçmişi: kapananlar burada (bu sayfanın tüm örnekleri)", content: <ToastHistory className="max-w-md" /> },
       ]}
       props={[
         { name: "tone", type: '"info" | "success" | "warning" | "danger" | "loading"', default: '"info"', description: "Renk ve ikon; danger ekran okuyucuya hemen (alert) okunur; loading spinner gösterir ve kendiliğinden kapanmaz" },
@@ -866,6 +1121,11 @@ function ToastSection() {
         { name: "<ToastProvider max>", type: "number", default: "4", description: "Aynı anda görünen en fazla bildirim; fazlası atılmaz, sırada bekler (süresi göründüğü an başlar)" },
         { name: "<ToastProvider label>", type: "string", default: '"Bildirimler"', description: "Bölgenin ekran okuyucu adı; birden fazla Provider varsa farklı ver" },
         { name: "id", type: "string | number", description: "Sabit kimlik: aynı id ile tekrar çağrılınca yeni bildirim açılmaz, mevcut güncellenir" },
+        { name: "dismissible", type: "boolean", default: "true", description: "false: × yok, kaydırma ve Esc çalışmaz, süreyle kapanmaz, sırada beklemez; yalnızca update/dismiss ile kapanır. dismissAll() dokunmaz" },
+        { name: "<ToastProvider stack>", type: "boolean", default: "false", description: "Deste görünümü: en fazla 3 kart üst üste görünür; üzerine gelince, odaklanınca veya dokununca açılır ve açıkken süreler durur" },
+        { name: "<ToastProvider historyLimit>", type: "number", default: "20", description: "Geçmişte tutulan en fazla kayıt" },
+        { name: "<ToastHistory />", type: "{ className?, title? }", description: "Kapanan bildirimlerin listesi: zaman ve kapanma nedeniyle (süre doldu, × ile kapatıldı…); Temizle düğmesi" },
+        { name: "useToastHistory()", type: "{ entries, clear }", description: "Geçmişi kendi arayüzünle göstermek için: entries (en yenisi başta) ve clear()" },
         { name: "<ToastProvider hotkey>", type: "string | false", default: '"F8"', description: "Odağı bildirimlere taşıyan kısayol; odaktaki bildirim Esc ile kapanır" },
         { name: "useToast()", type: "{ toast, update, dismiss, dismissAll, promise }", description: "toast(options) id döndürür; update(id, options) içeriği değiştirir; dismiss(id) / dismissAll() kapatır" },
         { name: "promise(p, { loading, success, error })", type: "Promise<T>", description: "İşlem sürerken yükleniyor bildirimi; bitince başarı ya da hata. success/error metin veya sonuca göre fonksiyon olabilir" },
