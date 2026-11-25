@@ -119,7 +119,8 @@ function CopyButton({ text }: { text: string }) {
   const { toast } = useToast();
   return (
     <button
-      className="shrink-0 rounded-control border border-border px-2 py-1 text-xs text-fg-muted hover:border-border-strong hover:text-fg"
+      // Telefonda kodun üstünde sağda, genişte kodun yanında durur
+      className="shrink-0 self-end rounded-control border border-border px-2 py-1 text-xs text-fg-muted hover:border-border-strong hover:text-fg sm:self-start"
       onClick={async () => {
         try {
           await navigator.clipboard.writeText(text);
@@ -247,7 +248,7 @@ function ExampleCode({ code }: { code: string }) {
         <span className="group-open:hidden">Kodu göster</span>
         <span className="hidden group-open:inline">Kodu gizle</span>
       </summary>
-      <div className="mt-2 flex items-start justify-between gap-2 rounded-control bg-surface-muted/60 p-3">
+      <div className="mt-2 flex flex-col-reverse gap-2 rounded-control bg-surface-muted/60 p-3 sm:flex-row sm:items-start sm:justify-between">
         <pre className="min-w-0 flex-1 overflow-x-auto text-xs leading-relaxed text-fg">
           <code>{code}</code>
         </pre>
@@ -316,7 +317,11 @@ function ComponentSection({
         >
           {preview}
         </div>
-        <div className="flex flex-col gap-4 border-t border-border bg-surface/20 p-4 lg:border-t-0 lg:border-l">
+        {/*
+          Geniş ekranda kontrol sütunu en fazla 34rem uzar, fazlası kendi içinde kayar: yoksa önizleme kutusu
+          kontrollerin boyuna (16 kontrolde ~1500 px) uzuyor ve buton ekranın çok altında kalıyordu.
+        */}
+        <div className="flex flex-col gap-4 border-t border-border bg-surface/20 p-4 lg:max-h-[34rem] lg:overflow-y-auto lg:overscroll-contain lg:border-t-0 lg:border-l">
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-semibold">Props</h3>
             <button
@@ -334,7 +339,8 @@ function ComponentSection({
             <ControlField key={c.name} scope={id} control={c} value={values[c.name]} onChange={(v) => onValuesChange({ ...values, [c.name]: v })} />
           ))}
         </div>
-        <div className="flex items-start justify-between gap-2 border-t border-border bg-surface-muted/40 p-4 max-lg:rounded-b-card lg:col-span-2">
+        {/* Telefonda Kopyala kodun üstüne geçer: kod tüm genişliği kullanır */}
+        <div className="flex flex-col-reverse gap-2 border-t border-border bg-surface-muted/40 p-4 max-lg:rounded-b-card sm:flex-row sm:items-start sm:justify-between lg:col-span-2">
           <pre className="min-w-0 flex-1 overflow-x-auto text-sm text-fg">
             <code>{code}</code>
           </pre>
