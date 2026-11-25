@@ -80,3 +80,31 @@ describe("Playground sayfası", () => {
     expect(result.violations.map((v) => `${v.id}: ${v.help}`)).toEqual([]);
   });
 });
+
+describe("Başlık", () => {
+  afterEach(() => {
+    document.documentElement.dataset.theme = "dark";
+    localStorage.removeItem("mds-theme");
+  });
+
+  it("tema düğmesi yazı yerine simgedir; adı ne yapacağını söyler, basınca tema değişir ve odak kalır", () => {
+    document.documentElement.dataset.theme = "dark";
+    renderApp();
+    const toggle = screen.getByRole("button", { name: "Açık temaya geç" });
+    expect(toggle).toHaveTextContent("");
+    expect(toggle.querySelector("svg")).toBeInTheDocument();
+
+    toggle.focus();
+    fireEvent.click(toggle);
+    expect(document.documentElement.dataset.theme).toBe("light");
+    expect(localStorage.getItem("mds-theme")).toBe("light");
+    expect(screen.getByRole("button", { name: "Koyu temaya geç" })).toBe(toggle);
+    expect(toggle).toHaveFocus();
+  });
+
+  it("bölüm bağlantıları başlıkta sırayla yer alır", () => {
+    renderApp();
+    const nav = screen.getByRole("navigation", { name: "Bileşenler" });
+    expect(within(nav).getAllByRole("link").map((a) => a.getAttribute("href"))).toEqual(["#button", "#toast"]);
+  });
+});

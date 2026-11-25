@@ -1136,25 +1136,97 @@ function ToastSection() {
 
 /* ---------- Sayfa ---------- */
 
+const SunIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+    <circle cx="12" cy="12" r="4" />
+    <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
+  </svg>
+);
+const MoonIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z" />
+  </svg>
+);
+
+/**
+ * Tema düğmesi: yazı yerine geçilecek temanın simgesi (koyu temadayken güneş, açıkta ay).
+ * Ne yaptığı ekran okuyucuya ve üzerine gelince ipucu olarak söylenir. Seçim tarayıcıda hatırlanır;
+ * hiç seçim yapılmadıysa ilk açılışta cihazın teması kullanılır (bkz. index.html).
+ */
 function ThemeButton() {
   const [theme, setTheme] = useState(() => document.documentElement.dataset.theme ?? "dark");
+  const [chosen, setChosen] = useState(false);
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
+    if (!chosen) return; // cihazdan gelen tema kaydedilmez: cihaz değişince site de değişsin
     try {
       localStorage.setItem("mds-theme", theme);
     } catch {
       // kaydedilemezse yalnızca bu oturumda geçerli olur
     }
-  }, [theme]);
+  }, [theme, chosen]);
+  // Kullanıcı seçim yapmadıysa cihazın teması değişince (ör. akşam otomatik koyu) site de değişir
+  useEffect(() => {
+    if (chosen || !window.matchMedia) return;
+    const query = window.matchMedia("(prefers-color-scheme: light)");
+    const onChange = () => setTheme(query.matches ? "light" : "dark");
+    query.addEventListener?.("change", onChange);
+    return () => query.removeEventListener?.("change", onChange);
+  }, [chosen]);
   const next = theme === "dark" ? "light" : "dark";
   return (
-    <Button size="sm" variant="secondary" onClick={() => setTheme(next)} aria-label={`${next === "light" ? "Açık" : "Koyu"} temaya geç`}>
-      {theme === "dark" ? "Açık tema" : "Koyu tema"}
-    </Button>
+    <IconButton
+      // Yalnızca simge yeniden çizilip hafifçe belirir; düğme yerinde kalır (klavye odağı kaybolmaz)
+      icon={
+        <span key={theme} className="flex animate-[tooltip-in_250ms_ease-out]">
+          {theme === "dark" ? <SunIcon /> : <MoonIcon />}
+        </span>
+      }
+      label={`${next === "light" ? "Açık" : "Koyu"} temaya geç`}
+      variant="secondary"
+      size="sm"
+      className="glass rounded-full border-border-strong/55! hover:border-primary/60!"
+      onClick={() => {
+        setChosen(true);
+        setTheme(next);
+      }}
+    />
   );
 }
 
+const sections = [
+  { id: "button", label: "Button" },
+  { id: "toast", label: "Toast" },
+];
+
+/**
+ * Şu an ekranda okunan bölüm: ekranın üst-orta bandına giren bölüm "aktif" sayılır.
+ * Kaydırma olayını her karede dinlemek yerine IntersectionObserver kullanılır (akıcılık için).
+ */
+function useActiveSection(ids: string[]) {
+  const [active, setActive] = useState<string | null>(null);
+  useEffect(() => {
+    if (typeof IntersectionObserver === "undefined") return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const hit = entries.filter((e) => e.isIntersecting).sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)[0];
+        if (hit) setActive(hit.target.id);
+      },
+      { rootMargin: "-30% 0px -60% 0px" },
+    );
+    for (const id of ids) {
+      const el = document.getElementById(id);
+      if (el) observer.observe(el);
+    }
+    return () => observer.disconnect();
+  }, [ids]);
+  return active;
+}
+
+const sectionIds = sections.map((s) => s.id);
+
 export function App() {
+  const active = useActiveSection(sectionIds);
   return (
     <div className="flex min-h-screen flex-col gap-3 p-2 md:p-3">
       {/* Başlık sayfanın üstünde durur, kaydırınca peşinden gelmez */}
@@ -1171,13 +1243,27 @@ export function App() {
           <span className="truncate text-xs text-fg-muted">Mini Design System</span>
         </a>
         {/* Telefonda: üst satırda logo + tema, bağlantılar alt satırda */}
-        <nav aria-label="Bileşenler" className="order-last flex w-full items-center gap-1 text-sm sm:order-none sm:w-auto">
-          <a href="#button" className="rounded-control px-3 py-1.5 text-fg-muted hover:bg-white/8 hover:text-fg">
-            Button
-          </a>
-          <a href="#toast" className="rounded-control px-3 py-1.5 text-fg-muted hover:bg-white/8 hover:text-fg">
-            Toast
-          </a>
+        <nav aria-label="Bileşenler" className="order-last flex w-full items-center gap-2 text-sm sm:order-none sm:w-auto">
+          {sections.map((s) => {
+            const current = active === s.id;
+            return (
+              <a
+                key={s.id}
+                href={`#${s.id}`}
+                // Ekran okuyucu "şu anki konum" der; görünürde de vurgulanır
+                aria-current={current ? "location" : undefined}
+                className={cn(
+                  // Cam kenarlı, yuvarlak bağlantı: başlık camının üstünde ayrı bir cam parça gibi durur
+                  // "!": glass kendi soluk kenar rengini verir; burada kenar belirgin olsun diye o ezilir
+                  "glass rounded-full border-border-strong/55! px-4 py-1.5 font-medium text-fg-muted transition-colors",
+                  "hover:border-primary/60! hover:text-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary",
+                  current && "border-primary/80! bg-primary-soft! text-primary hover:text-primary",
+                )}
+              >
+                {s.label}
+              </a>
+            );
+          })}
         </nav>
         <ThemeButton />
       </header>

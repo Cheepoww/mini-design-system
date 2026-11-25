@@ -7,8 +7,9 @@
     <script>
       // Sayfa çizilmeden önce temayı uygula; yoksa koyu temada bir an beyaz parlar
       (function () {
-        var theme = "dark";
-        try { theme = localStorage.getItem("mds-theme") || "dark"; } catch (e) {}
+        // Kayıtlı seçim yoksa cihazın teması (açık tercih edilmiyorsa koyu)
+        var theme = window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+        try { theme = localStorage.getItem("mds-theme") || theme; } catch (e) {}
         document.documentElement.dataset.theme = theme === "light" ? "light" : "dark";
       })();
     </script>
