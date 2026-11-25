@@ -228,6 +228,34 @@ function GuidanceBlock({ id, guidance }: { id: string; guidance: Guidance }) {
   );
 }
 
+interface Example {
+  title: string;
+  content: ReactNode;
+  /** "Kodu göster" altında açılan, kopyalanabilir örnek kod */
+  code?: string;
+}
+
+/** Örneğin altındaki açılır kod: kapalıyken yer kaplamaz, açınca kopyalanabilir */
+function ExampleCode({ code }: { code: string }) {
+  return (
+    <details className="group mt-3 border-t border-border pt-2">
+      <summary className="flex w-fit cursor-pointer list-none items-center gap-1 rounded-control py-1 text-xs font-medium text-primary hover:underline focus-visible:outline-2 focus-visible:outline-primary [&::-webkit-details-marker]:hidden">
+        <svg className="size-3.5 transition-transform group-open:rotate-90" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+          <path d="M9 6l6 6-6 6" />
+        </svg>
+        <span className="group-open:hidden">Kodu göster</span>
+        <span className="hidden group-open:inline">Kodu gizle</span>
+      </summary>
+      <div className="mt-2 flex items-start justify-between gap-2 rounded-control bg-surface-muted/60 p-3">
+        <pre className="min-w-0 flex-1 overflow-x-auto text-xs leading-relaxed text-fg">
+          <code>{code}</code>
+        </pre>
+        <CopyButton text={code} />
+      </div>
+    </details>
+  );
+}
+
 /** Bir bileşenin sayfası: başlık, canlı önizleme + kontroller + kod, rehber, örnekler, prop tablosu */
 function ComponentSection({
   id,
@@ -253,7 +281,7 @@ function ComponentSection({
   preview: ReactNode;
   code: string;
   guidance: Guidance;
-  examples: { title: string; content: ReactNode }[];
+  examples: Example[];
   props: PropRow[];
 }) {
   return (
@@ -321,6 +349,7 @@ function ComponentSection({
           <div key={ex.title} className="glass rounded-card p-4">
             <h4 className="mb-3 text-sm font-medium text-fg-muted">{ex.title}</h4>
             <div className="flex flex-wrap items-center gap-3">{ex.content}</div>
+            {ex.code && <ExampleCode code={ex.code} />}
           </div>
         ))}
       </div>
@@ -552,22 +581,14 @@ function ProgressDemo() {
 
 /** Küçük, sık işlemlerde (kopyala) bildirim yerine butonun kendisi geri bildirim verir */
 function CopyDemo() {
-  const [copied, setCopied] = useState<string | null>(null);
-  useEffect(() => {
-    if (!copied) return;
-    const t = window.setTimeout(() => setCopied(null), 1500);
-    return () => window.clearTimeout(t);
-  }, [copied]);
-  const copy = (key: string, text: string) => {
-    navigator.clipboard?.writeText(text).catch(() => {});
-    setCopied(key);
-  };
+  // writeText bir Promise döndürür: buton ✓ "Kopyalandı" ya da ✕ "Kopyalanamadı" gösterir, state gerekmez
+  const copy = (text: string) => navigator.clipboard.writeText(text);
   return (
     <>
-      <Button variant="secondary" success={copied === "link"} successText="Kopyalandı" onClick={() => copy("link", window.location.href)}>
+      <Button variant="secondary" successText="Kopyalandı" errorText="Kopyalanamadı" onClick={() => copy(window.location.href)}>
         Bağlantıyı kopyala
       </Button>
-      <IconButton icon={<CopyIcon />} label="Kodu kopyala" variant="secondary" success={copied === "code"} onClick={() => copy("code", "<Button>Kaydet</Button>")} />
+      <IconButton icon={<CopyIcon />} label="Kodu kopyala" variant="secondary" onClick={() => copy("<Button>Kaydet</Button>")} />
     </>
   );
 }
@@ -788,6 +809,7 @@ function ButtonSection() {
       examples={[
         {
           title: "Varyantlar",
+          code: `<Button>Primary</Button>\n<Button variant="secondary">Secondary</Button>\n<Button variant="ghost">Ghost</Button>\n<Button variant="danger">Danger</Button>`,
           content: (
             <>
               <Button onClick={say("Primary: sayfadaki asıl eylem")}>Primary</Button>
@@ -799,6 +821,7 @@ function ButtonSection() {
         },
         {
           title: "Boyutlar",
+          code: `<Button size="sm">Küçük</Button>\n<Button size="md">Orta</Button>\n<Button size="lg">Büyük</Button>`,
           content: (
             <>
               <Button size="sm" onClick={say("sm: 32 px")}>Küçük</Button>
@@ -809,6 +832,7 @@ function ButtonSection() {
         },
         {
           title: "Durumlar: loading ve disabled",
+          code: `<Button loading>Kaydediliyor</Button>\n<Button disabled>Pasif</Button>\n<Button variant="secondary" disabled>Pasif ikincil</Button>`,
           content: (
             <>
               <Button loading>Kaydediliyor</Button>
@@ -819,6 +843,7 @@ function ButtonSection() {
         },
         {
           title: "İkonlu",
+          code: `<Button leftIcon={<PlusIcon />}>Yeni ekle</Button>\n<Button variant="secondary" rightIcon={<ArrowIcon />}>Devam et</Button>`,
           content: (
             <>
               <Button leftIcon={<PlusIcon />} onClick={say("Yeni kayıt")}>Yeni ekle</Button>
@@ -826,17 +851,78 @@ function ButtonSection() {
             </>
           ),
         },
-        { title: "Kendi kendini yöneten buton: onClick async ise yükleniyor → ✓ ya da ✕ (state gerekmez)", content: <SaveDemo /> },
-        { title: "Başarı geri bildirimi: kopyala → ✓ kopyalandı (bildirim açmadan)", content: <CopyDemo /> },
-        { title: "Nedenini söyleyen pasif buton (disabledReason)", content: <DisabledReasonDemo /> },
-        { title: "ConfirmButton: iki adımlı onay (3 sn içinde tekrar bas; Esc veya dışarı tıklayınca vazgeçilir)", content: <ConfirmDemo /> },
-        { title: "Bağlantı olarak buton (href → <a>)", content: <LinkDemo /> },
-        { title: "Klavye kısayolu (shortcut): Ctrl+S / ⌘S", content: <ShortcutDemo /> },
-        { title: "ToggleButton: aç/kapa (yazı değişmez, durum \"basılı\" olarak okunur)", content: <ToggleDemo /> },
-        { title: "İlerleme gösteren buton (progress)", content: <ProgressDemo /> },
-        { title: "IconButton: yalnızca ikon (label zorunlu, üzerine gelince ipucu)", content: <IconButtonDemo /> },
-        { title: "ButtonGroup: tek seçim (ok tuşlarıyla gezilir, pasif seçenek atlanır)", content: <RangeDemo /> },
-        { title: "ButtonGroup: yapışık eylem butonları", content: <ActionGroupDemo /> },
+        { title: "Kendi kendini yöneten buton: onClick async ise yükleniyor → ✓ ya da ✕ (state gerekmez)", content: <SaveDemo />, code: `<Button
+  loadingText="Kaydediliyor…"
+  successText="Kaydedildi"
+  errorText="Kaydedilemedi"
+  onClick={async () => {
+    await api.save(form); // hata fırlatırsa buton ✕ gösterir
+  }}
+>
+  Değişiklikleri kaydet
+</Button>` },
+        { title: "Başarı geri bildirimi: kopyala → ✓ kopyalandı (bildirim açmadan)", content: <CopyDemo />, code: `// writeText Promise döndürür: ✓ ya da ✕ kendiliğinden gösterilir
+<Button
+  variant="secondary"
+  successText="Kopyalandı"
+  errorText="Kopyalanamadı"
+  onClick={() => navigator.clipboard.writeText(url)}
+>
+  Bağlantıyı kopyala
+</Button>` },
+        { title: "Nedenini söyleyen pasif buton (disabledReason)", content: <DisabledReasonDemo />, code: `<Button
+  disabled={!accepted}
+  disabledReason="Önce kullanım koşullarını kabul edin"
+  onClick={createAccount}
+>
+  Hesap oluştur
+</Button>` },
+        { title: "ConfirmButton: iki adımlı onay (3 sn içinde tekrar bas; Esc veya dışarı tıklayınca vazgeçilir)", content: <ConfirmDemo />, code: `<ConfirmButton size="sm" leftIcon={<TrashIcon />} onConfirm={() => deleteProject(id)}>
+  Kalıcı sil
+</ConfirmButton>` },
+        { title: "Bağlantı olarak buton (href → <a>)", content: <LinkDemo />, code: `<Button href="/ayarlar" variant="secondary" rightIcon={<ArrowIcon />}>
+  Ayarlara git
+</Button>
+<Button href="/rapor" disabled disabledReason="Rapor henüz hazır değil">
+  Raporu aç
+</Button>` },
+        { title: "Klavye kısayolu (shortcut): Ctrl+S / ⌘S", content: <ShortcutDemo />, code: `// Mod = Mac'te ⌘, diğerlerinde Ctrl
+<Button shortcut="Mod+S" onClick={save}>Kaydet</Button>` },
+        { title: "ToggleButton: aç/kapa (yazı değişmez, durum \"basılı\" olarak okunur)", content: <ToggleDemo />, code: `const [bold, setBold] = useState(false);
+
+<ToggleButton pressed={bold} onPressedChange={setBold} aria-label="Kalın">
+  <BoldIcon />
+</ToggleButton>
+
+// durumu kendisi tutsun:
+<ToggleButton defaultPressed>Sessize al</ToggleButton>` },
+        { title: "İlerleme gösteren buton (progress)", content: <ProgressDemo />, code: `const [progress, setProgress] = useState<number>();
+
+<Button progress={progress} loadingText="Yükleniyor" onClick={() => upload(file, setProgress)}>
+  Dosyayı yükle
+</Button>
+// yükleme ilerledikçe setProgress(0.4)…, bitince setProgress(undefined)` },
+        { title: "IconButton: yalnızca ikon (label zorunlu, üzerine gelince ipucu)", content: <IconButtonDemo />, code: `<IconButton icon={<EditIcon />} label="Düzenle" />
+<IconButton icon={<TrashIcon />} label="Sil" variant="danger" />
+<IconButton icon={<RefreshIcon />} label="Yenile" variant="secondary" onClick={refresh} />` },
+        { title: "ButtonGroup: tek seçim (ok tuşlarıyla gezilir, pasif seçenek atlanır)", content: <RangeDemo />, code: `const [range, setRange] = useState("week");
+
+<ButtonGroup
+  label="Zaman aralığı"
+  value={range}
+  onValueChange={setRange}
+  options={[
+    { value: "day", label: "Gün" },
+    { value: "week", label: "Hafta" },
+    { value: "month", label: "Ay" },
+    { value: "year", label: "Yıl", disabled: true },
+  ]}
+/>` },
+        { title: "ButtonGroup: yapışık eylem butonları", content: <ActionGroupDemo />, code: `<ButtonGroup label="Belge işlemleri">
+  <Button variant="secondary">Kopyala</Button>
+  <Button variant="secondary">Taşı</Button>
+  <Button variant="secondary">Arşivle</Button>
+</ButtonGroup>` },
       ]}
       props={[
         { name: "variant", type: '"primary" | "secondary" | "ghost" | "danger"', default: '"primary"', description: "Görsel stil" },
@@ -1233,16 +1319,52 @@ function ToastSection() {
         ],
       }}
       examples={[
-        { title: "Tüm tonlar (üst üste en fazla 4 tane kalır)", content: <AllTones /> },
-        { title: "Geri alınabilir silme: \"Geri al\" + onClose ile kesinleştirme (bildirimi kaydırarak da kapatabilirsin)", content: <UndoDemo /> },
-        { title: "toast.promise: işlem sürerken yükleniyor, bitince başarı veya hata", content: <PromiseDemo /> },
-        { title: "Tekrarı önleme: aynı id ile gönderilen bildirim yığılmaz, güncellenir", content: <DedupeDemo /> },
-        { title: "Sıra: fazla bildirim atılmaz, sırada bekler", content: <QueueDemo /> },
-        { title: "Tümünü kapat ve klavye kısayolları", content: <DismissAllDemo /> },
-        { title: "Kapatılamayan önemli bildirim (dismissible: false): sorun çözülünce kod günceller", content: <ConnectionDemo /> },
-        { title: "Yığın görünümü (stack): deste gibi durur, üzerine gelince açılır", content: <StackDemo /> },
-        { title: "Sekme gizliyken süre durur", content: <HiddenTabDemo /> },
-        { title: "Bildirim geçmişi: kapananlar burada (bu sayfanın tüm örnekleri)", content: <ToastHistory className="max-w-md" /> },
+        { title: "Tüm tonlar (üst üste en fazla 4 tane kalır)", content: <AllTones />, code: `toast({ tone: "info", title: "Yeni sürüm hazır" });
+toast({ tone: "success", title: "Kaydedildi" });
+toast({ tone: "warning", title: "Depolama %90 dolu" });
+toast({ tone: "danger", title: "Bağlantı koptu" });` },
+        { title: "Geri alınabilir silme: \"Geri al\" + onClose ile kesinleştirme (bildirimi kaydırarak da kapatabilirsin)", content: <UndoDemo />, code: `toast({
+  title: \`"\${name}" silindi\`,
+  duration: 6000,
+  action: { label: "Geri al", onClick: () => restore(name) },
+  onClose: (reason) => {
+    // "Geri al"a basılmadıysa silme kesinleşir
+    if (reason !== "action") deleteForever(name);
+  },
+});` },
+        { title: "toast.promise: işlem sürerken yükleniyor, bitince başarı veya hata", content: <PromiseDemo />, code: `const { promise } = useToast();
+
+promise(api.save(profile), {
+  loading: "Kaydediliyor…",
+  success: (name) => \`\${name} kaydedildi\`,
+  error: (e) => \`Kaydedilemedi: \${(e as Error).message}\`,
+});` },
+        { title: "Tekrarı önleme: aynı id ile gönderilen bildirim yığılmaz, güncellenir", content: <DedupeDemo />, code: `// Aynı id: yeni bildirim açılmaz, mevcut güncellenir
+toast({ id: "baglanti", tone: "warning", title: "Bağlantı yavaş" });` },
+        { title: "Sıra: fazla bildirim atılmaz, sırada bekler", content: <QueueDemo />, code: `// Aynı anda en fazla 4 görünür; fazlası sırada bekler
+<ToastProvider max={4}>
+  <App />
+</ToastProvider>` },
+        { title: "Tümünü kapat ve klavye kısayolları", content: <DismissAllDemo />, code: `const { dismissAll } = useToast();
+
+<Button variant="ghost" onClick={dismissAll}>Tümünü kapat</Button>
+// F8: bildirimlere atla · Esc: odaktakini kapat` },
+        { title: "Kapatılamayan önemli bildirim (dismissible: false): sorun çözülünce kod günceller", content: <ConnectionDemo />, code: `const { toast, update } = useToast();
+
+// Bağlantı koptu: kullanıcı kapatamaz, süreyle de kapanmaz
+toast({ id: "connection", tone: "danger", title: "Bağlantı koptu", dismissible: false });
+
+// Bağlantı geldi: aynı bildirim normale döner ve kendiliğinden kapanır
+update("connection", { tone: "success", title: "Bağlantı geri geldi", dismissible: true });` },
+        { title: "Yığın görünümü (stack): deste gibi durur, üzerine gelince açılır", content: <StackDemo />, code: `<ToastProvider stack position="top-center">
+  <App />
+</ToastProvider>` },
+        { title: "Sekme gizliyken süre durur", content: <HiddenTabDemo />, code: `// Ek kod gerekmez: sekme arka plandayken süre kendiliğinden durur
+toast({ title: "Sen yokken geldi", duration: 5000 });` },
+        { title: "Bildirim geçmişi: kapananlar burada (bu sayfanın tüm örnekleri)", content: <ToastHistory className="max-w-md" />, code: `<ToastHistory />
+
+// ya da kendi arayüzünle:
+const { entries, clear } = useToastHistory();` },
       ]}
       props={[
         { name: "tone", type: '"info" | "success" | "warning" | "danger" | "loading"', default: '"info"', description: "Renk ve ikon; danger ekran okuyucuya hemen (alert) okunur; loading spinner gösterir ve kendiliğinden kapanmaz" },

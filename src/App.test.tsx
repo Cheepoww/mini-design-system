@@ -73,6 +73,18 @@ describe("Playground sayfası", () => {
     }
   });
 
+  it("her örneğin altında açılır, kopyalanabilir kodu vardır", () => {
+    const { container } = renderApp();
+    const examples = container.querySelectorAll("section h4.mb-3");
+    const codes = container.querySelectorAll("section details");
+    expect(examples.length).toBeGreaterThan(0);
+    expect(codes).toHaveLength(examples.length);
+    for (const d of codes) {
+      expect(within(d as HTMLElement).getByText("Kodu göster")).toBeInTheDocument();
+      expect(d.querySelector("code")?.textContent?.trim()).not.toBe("");
+    }
+  });
+
   it("erişilebilirlik kural ihlali içermez (axe-core)", async () => {
     const { container } = renderApp();
     // jsdom gerçek renkleri hesaplayamaz; kontrast tarayıcıda ölçülür
