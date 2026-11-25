@@ -19,8 +19,9 @@ type Control =
 
 type Values = Record<string, string | boolean>;
 
-function ControlField({ control, value, onChange }: { control: Control; value: string | boolean; onChange: (v: string | boolean) => void }) {
-  const id = `ctl-${control.name}`;
+// scope = bölüm id'si; yalnız prop adı kullanılsaydı iki bölümdeki "size" kontrolü aynı id'yi alırdı
+function ControlField({ scope, control, value, onChange }: { scope: string; control: Control; value: string | boolean; onChange: (v: string | boolean) => void }) {
+  const id = `${scope}-ctl-${control.name}`;
   const hintId = `${id}-hint`;
   const fieldClass = "w-full rounded-control border border-border-strong bg-surface px-2 py-1.5 text-sm";
   const hint = (
@@ -294,7 +295,7 @@ function ComponentSection({
           </div>
           <p className="-mt-2 text-xs text-fg-muted">Değiştir, önizleme ve aşağıdaki kod anında güncellenir.</p>
           {controls.map((c) => (
-            <ControlField key={c.name} control={c} value={values[c.name]} onChange={(v) => onValuesChange({ ...values, [c.name]: v })} />
+            <ControlField key={c.name} scope={id} control={c} value={values[c.name]} onChange={(v) => onValuesChange({ ...values, [c.name]: v })} />
           ))}
         </div>
         <div className="flex items-start justify-between gap-2 border-t border-border bg-surface-muted/40 p-4 max-lg:rounded-b-card lg:col-span-2">

@@ -60,6 +60,19 @@ describe("Playground sayfası", () => {
     expect(screen.getAllByText("Değişiklikler kaydedildi").length).toBeGreaterThan(0);
   });
 
+  it("sayfadaki her id tektir; aynı adlı kontroller kendi bölümüne bağlanır", () => {
+    const { container } = renderApp();
+    const ids = [...container.querySelectorAll("[id]")].map((el) => el.id);
+    expect(ids.filter((id, i) => ids.indexOf(id) !== i)).toEqual([]);
+    // Etiket, başka bölümdeki aynı adlı kontrole değil kendi bölümündekine gider
+    for (const name of ["Button", "Toast"]) {
+      const section = screen.getByRole("region", { name });
+      for (const control of section.querySelectorAll("select, input")) {
+        if (control.id) expect(section.contains(container.querySelector(`label[for="${control.id}"]`))).toBe(true);
+      }
+    }
+  });
+
   it("erişilebilirlik kural ihlali içermez (axe-core)", async () => {
     const { container } = renderApp();
     // jsdom gerçek renkleri hesaplayamaz; kontrast tarayıcıda ölçülür
