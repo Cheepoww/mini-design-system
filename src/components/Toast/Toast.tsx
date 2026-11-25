@@ -1,25 +1,27 @@
-import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, FocusEvent, KeyboardEvent, MouseEvent, PointerEvent, ReactNode } from "react";
 import { cn } from "../../lib/cn";
 import { Spinner } from "../Button/Button";
 
 /** "loading": işlem sürüyor (spinner, kendiliğinden kapanmaz). toast.promise bunu kullanır. */
 export type ToastTone = "info" | "success" | "warning" | "danger" | "loading";
-export type ToastPosition = "top-right" | "bottom-right" | "top-center" | "bottom-center";
+export type ToastPosition = "top-left" | "top-center" | "top-right" | "bottom-left" | "bottom-center" | "bottom-right";
 export type ToastId = string | number;
 
 /**
  * Bildirim neden kapandı:
  * timeout (süre doldu), close (× düğmesi), action (eylem düğmesi), swipe (kaydırıldı),
- * escape (Esc tuşu), dismiss (kod: dismiss(id)), dismissAll (kod: dismissAll())
+ * escape (Esc tuşu), dismiss (kod: dismiss(id)), dismissAll (kod: dismissAll()),
+ * secondaryAction (ikinci eylem düğmesi)
  */
-export type ToastCloseReason = "timeout" | "close" | "action" | "swipe" | "escape" | "dismiss" | "dismissAll";
+export type ToastCloseReason = "timeout" | "close" | "action" | "secondaryAction" | "swipe" | "escape" | "dismiss" | "dismissAll";
 
 /** Kapanma nedenlerinin kullanıcıya gösterilecek Türkçe karşılıkları (ör. geçmiş listesinde) */
 export const TOAST_CLOSE_REASON_LABELS: Record<ToastCloseReason, string> = {
   timeout: "süre doldu",
   close: "× ile kapatıldı",
   action: "eylem düğmesine basıldı",
+  secondaryAction: "ikinci eylem düğmesine basıldı",
   swipe: "kaydırılarak kapatıldı",
   escape: "Esc ile kapatıldı",
   dismiss: "kodla kapatıldı",
@@ -38,8 +40,18 @@ export interface ToastOptions {
   description?: ReactNode;
   /** Kaç ms sonra kapanır. 0 = kendiliğinden kapanmaz. Varsayılan: 4000 ("loading" ve dismissible: false için 0) */
   duration?: number;
-  /** Toast içinde tek bir aksiyon butonu (ör. "Geri al") */
-  action?: { label: string; onClick: () => void };
+  /**
+   * Ana eylem düğmesi (ör. "Geri al"). countdown: true ise düğmede kalan saniye görünür ("Geri al · 4"):
+   * kullanıcı ne kadar vakti kaldığını bilir.
+   */
+  action?: { label: string; onClick: () => void; countdown?: boolean };
+  /** İkinci, daha sönük eylem düğmesi (ör. "Reddet"). Kapanış nedeni: "secondaryAction" */
+  secondaryAction?: { label: string; onClick: () => void };
+  /**
+   * İlerleme (0–1): bildirimde dolan bir çubuk ve yüzde görünür; bu sürede süreyle kapanmaz.
+   * update(id, { progress }) ile ilerletilir; bitince progress: undefined ve başarı tonu verilir.
+   */
+  progress?: number;
   /**
    * false ise kullanıcı kapatamaz (× yok, kaydırma ve Esc çalışmaz), süreyle de kapanmaz ve sırada beklemez.
    * Sorun sürdükçe ekranda kalması gereken bildirimler için (ör. "Bağlantı koptu"); sorun çözülünce
@@ -66,6 +78,8 @@ interface ToastItem extends ToastOptions {
   leaving: boolean;
   /** Her güncellemede artar: süre ve süre çubuğu baştan başlar */
   version: number;
+  /** Aynı id ile kaç kez gönderildi (×3 gibi gösterilir) */
+  count: number;
 }
 
 /** Kapanmış bir bildirimin kaydı (geçmiş listesi için) */
@@ -99,9 +113,19 @@ export interface ToastContextValue {
 export interface ToastHistoryValue {
   /** Kapanan bildirimler, en yenisi başta */
   entries: ToastHistoryEntry[];
+  /**
+   * Kullanıcının görmeden kaçırdıkları: süre dolarak ya da kodla kapananlar (kendi kapattıkları sayılmaz).
+   * markRead() ile sıfırlanır.
+   */
+  unread: number;
+  /** Okunmamışları okundu sayar (ör. geçmiş paneli açılınca) */
+  markRead: () => void;
   /** Geçmişi temizler */
   clear: () => void;
 }
+
+/** Kullanıcının kendi eliyle kapattığı bildirim "kaçırılmış" sayılmaz */
+const USER_REASONS: ToastCloseReason[] = ["close", "action", "secondaryAction", "swipe", "escape"];
 
 const ToastContext = createContext<ToastContextValue | null>(null);
 // Geçmiş ayrı bağlamda: her kapanışta değişir; useToast() kullanan bileşenler bundan dolayı yeniden çizilmesin
@@ -134,6 +158,8 @@ const STACK_GAP_PX = 8;
 const FALLBACK_HEIGHT = 64;
 
 const positionClasses: Record<ToastPosition, string> = {
+  "top-left": "top-4 left-4 items-start",
+  "bottom-left": "bottom-4 left-4 items-start flex-col-reverse",
   "top-right": "top-4 right-4 items-end",
   "bottom-right": "bottom-4 right-4 items-end flex-col-reverse",
   "top-center": "top-4 left-1/2 -translate-x-1/2 items-center",
@@ -190,6 +216,7 @@ export function ToastProvider({
 }: ToastProviderProps) {
   const [items, setItems] = useState<ToastItem[]>([]);
   const [history, setHistory] = useState<ToastHistoryEntry[]>([]);
+  const [unread, setUnread] = useState(0);
   const nextId = useRef(1);
   const nextHistoryKey = useRef(1);
   const regionRef = useRef<HTMLDivElement>(null);
@@ -216,6 +243,7 @@ export function ToastProvider({
       entries.unshift({ key: nextHistoryKey.current++, id, tone: item.tone ?? "info", title: item.title, description: item.description, reason, closedAt });
     }
     setHistory((p) => [...entries, ...p].slice(0, historyLimitRef.current));
+    if (!USER_REASONS.includes(reason)) setUnread((n) => Math.min(n + entries.length, historyLimitRef.current));
     // Önce kapanış animasyonu, sonra DOM'dan kaldır
     setItems((p) => p.map((t) => (targets.includes(t.id) ? { ...t, leaving: true } : t)));
     window.setTimeout(() => {
@@ -255,8 +283,9 @@ export function ToastProvider({
     setItems((p) => {
       const existing = p.find((t) => t.id === id);
       // Aynı id: yığma, güncelle (kapanmaktaysa geri getir)
-      if (existing) return p.map((t) => (t.id === id ? { ...options, id, leaving: false, version: t.version + 1 } : t));
-      return [...p, { ...options, id, leaving: false, version: 0 }];
+      // Kapanmakta olan bildirim geri gelirse sayaç baştan başlar
+      if (existing) return p.map((t) => (t.id === id ? { ...options, id, leaving: false, version: t.version + 1, count: t.leaving ? 1 : t.count + 1 } : t));
+      return [...p, { ...options, id, leaving: false, version: 0, count: 1 }];
     });
     return id;
   }, []);
@@ -274,8 +303,12 @@ export function ToastProvider({
   );
 
   const value = useMemo(() => ({ toast, update, dismiss, dismissAll, promise }), [toast, update, dismiss, dismissAll, promise]);
-  const clearHistory = useCallback(() => setHistory([]), []);
-  const historyValue = useMemo(() => ({ entries: history, clear: clearHistory }), [history, clearHistory]);
+  const clearHistory = useCallback(() => {
+    setHistory([]);
+    setUnread(0);
+  }, []);
+  const markRead = useCallback(() => setUnread(0), []);
+  const historyValue = useMemo(() => ({ entries: history, unread, markRead, clear: clearHistory }), [history, unread, markRead, clearHistory]);
 
   // Kısayol (varsayılan F8): odağı bildirim bölgesine taşır; klavye ve ekran okuyucu kullanıcıları için
   useEffect(() => {
@@ -453,6 +486,8 @@ export interface ToastProps extends Omit<ToastOptions, "onClose"> {
   stack?: ToastStackLayout;
   /** Kartın doğal yüksekliğini bildirir (yığın hesabı için) */
   onHeight?: (height: number) => void;
+  /** Aynı id ile kaç kez gönderildi; 1'den büyükse ×N gösterilir */
+  count?: number;
 }
 
 /**
@@ -466,6 +501,8 @@ export function Toast({
   dismissible = true,
   duration = defaultDuration(tone, dismissible),
   action,
+  secondaryAction,
+  progress,
   onDismiss,
   onEscape,
   leaving = false,
@@ -473,7 +510,11 @@ export function Toast({
   paused: pausedFromOutside = false,
   stack,
   onHeight,
+  count = 1,
 }: ToastProps) {
+  // İlerleme sürerken bildirim süreyle kapanmaz
+  const hasProgress = progress !== undefined;
+  const timed = !hasProgress && duration > 0;
   const [pausedHere, setPausedHere] = useState(false);
   const paused = pausedHere || pausedFromOutside;
   const remaining = useRef(duration);
@@ -539,15 +580,36 @@ export function Toast({
     e.preventDefault();
   };
 
+  /** Süre işliyorsa başladığı an; durunca null (geri sayım bunu okur) */
+  const runningSince = useRef<number | null>(null);
   useEffect(() => {
-    if (duration <= 0 || paused || dragging || leaving) return;
+    if (!timed || paused || dragging || leaving) return;
     const startedAt = Date.now();
+    runningSince.current = startedAt;
     const timer = setTimeout(() => dismissRef.current("timeout"), remaining.current);
     return () => {
       clearTimeout(timer);
+      runningSince.current = null;
       remaining.current -= Date.now() - startedAt; // kalan süreyi sakla
     };
-  }, [paused, dragging, duration, leaving, version]);
+  }, [paused, dragging, timed, leaving, version]);
+
+  /* ---------- Eylem düğmesinde geri sayım ---------- */
+  const showCountdown = !!action?.countdown && timed;
+  const [secondsLeft, setSecondsLeft] = useState(() => Math.ceil(duration / 1000));
+  useEffect(() => {
+    setSecondsLeft(Math.ceil(duration / 1000));
+  }, [version, duration]);
+  useEffect(() => {
+    if (!showCountdown || paused || dragging || leaving) return;
+    const tick = () => {
+      const since = runningSince.current;
+      const left = since === null ? remaining.current : remaining.current - (Date.now() - since);
+      setSecondsLeft(Math.max(0, Math.ceil(left / 1000)));
+    };
+    const id = window.setInterval(tick, 250);
+    return () => window.clearInterval(id);
+  }, [showCountdown, paused, dragging, leaving, version]);
 
   const s = toneStyles[tone];
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
@@ -614,20 +676,71 @@ export function Toast({
         </svg>
       )}
       <div className="min-w-0 flex-1">
-        <p className="text-sm font-semibold text-fg">{title}</p>
+        <p className="text-sm font-semibold text-fg">
+          {title}
+          {count > 1 && (
+            <>
+              <span aria-hidden="true" data-testid="toast-count" className="ml-1.5 inline-block rounded-full bg-primary-soft px-1.5 align-[1px] text-xs font-medium text-primary tabular-nums">
+                ×{count}
+              </span>
+              <span className="sr-only"> ({count}. kez)</span>
+            </>
+          )}
+        </p>
         {description && <p className="mt-0.5 text-sm text-fg-muted">{description}</p>}
-        {action && (
-          <button
-            type="button"
-            // Dokunmatik ekranda (pointer-coarse) dokunma alanı büyür, görünüm aynı kalır
-            className="mt-2 rounded text-sm font-medium text-primary hover:underline pointer-coarse:-mx-2 pointer-coarse:-my-2 pointer-coarse:px-2 pointer-coarse:py-2"
-            onClick={() => {
-              action.onClick();
-              onDismiss("action");
-            }}
-          >
-            {action.label}
-          </button>
+        {hasProgress && (
+          <div className="mt-2 flex items-center gap-2">
+            <div
+              role="progressbar"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={Math.round(Math.min(1, Math.max(0, progress)) * 100)}
+              aria-label={typeof title === "string" ? title : "İlerleme"}
+              className="h-1.5 flex-1 overflow-hidden rounded-full bg-border"
+            >
+              <div className="h-full rounded-full bg-primary transition-[width] duration-300" style={{ width: `${Math.min(1, Math.max(0, progress)) * 100}%` }} />
+            </div>
+            {/* Yüzde her değiştiğinde ekran okuyucu okumasın diye gizli; değer progressbar'da */}
+            <span aria-hidden="true" className="w-9 text-right text-xs text-fg-muted tabular-nums">
+              %{Math.round(Math.min(1, Math.max(0, progress)) * 100)}
+            </span>
+          </div>
+        )}
+        {(action || secondaryAction) && (
+          <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1">
+            {action && (
+              <button
+                type="button"
+                // Dokunmatik ekranda (pointer-coarse) dokunma alanı büyür, görünüm aynı kalır
+                className="rounded text-sm font-medium text-primary hover:underline pointer-coarse:-mx-2 pointer-coarse:-my-2 pointer-coarse:px-2 pointer-coarse:py-2"
+                onClick={() => {
+                  action.onClick();
+                  onDismiss("action");
+                }}
+              >
+                {action.label}
+                {/* Geri sayım görsel; her saniye ekran okuyucuya okunmasın */}
+                {showCountdown && (
+                  <span aria-hidden="true" data-testid="toast-countdown" className="font-normal text-fg-muted tabular-nums">
+                    {" "}
+                    · {secondsLeft}
+                  </span>
+                )}
+              </button>
+            )}
+            {secondaryAction && (
+              <button
+                type="button"
+                className="rounded text-sm text-fg-muted hover:text-fg hover:underline pointer-coarse:-mx-2 pointer-coarse:-my-2 pointer-coarse:px-2 pointer-coarse:py-2"
+                onClick={() => {
+                  secondaryAction.onClick();
+                  onDismiss("secondaryAction");
+                }}
+              >
+                {secondaryAction.label}
+              </button>
+            )}
+          </div>
         )}
       </div>
       {dismissible && (
@@ -643,7 +756,7 @@ export function Toast({
         </button>
       )}
       {/* Kalan süre çubuğu: süre durunca o da durur; hareket azaltma tercihinde gizlenir */}
-      {duration > 0 && (
+      {timed && (
         <span
           key={version}
           aria-hidden="true"
@@ -662,6 +775,8 @@ export interface ToastHistoryProps {
   className?: string;
   /** Liste başlığı. Varsayılan: "Bildirim geçmişi" */
   title?: string;
+  /** "strong": üstte açılan panelde daha opak cam. Varsayılan: "glass" */
+  surface?: "glass" | "strong";
 }
 
 const timeFormat = new Intl.DateTimeFormat("tr-TR", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
@@ -670,10 +785,10 @@ const timeFormat = new Intl.DateTimeFormat("tr-TR", { hour: "2-digit", minute: "
  * Kapanan bildirimlerin listesi (en yenisi üstte). Kaçırılan bir bildirim sonradan buradan okunur.
  * <ToastProvider> içinde kullanılır; o Provider'ın geçmişini gösterir.
  */
-export function ToastHistory({ className, title = "Bildirim geçmişi" }: ToastHistoryProps) {
+export function ToastHistory({ className, title = "Bildirim geçmişi", surface = "glass" }: ToastHistoryProps) {
   const { entries, clear } = useToastHistory();
   return (
-    <section aria-label={title} className={cn("glass flex w-full flex-col rounded-card", className)}>
+    <section aria-label={title} className={cn(surface === "strong" ? "glass-strong" : "glass", "flex w-full flex-col rounded-card", className)}>
       <header className="flex items-center justify-between gap-3 border-b border-border px-4 py-2.5">
         <h4 className="text-sm font-semibold">
           {title} <span className="font-normal text-fg-muted">({entries.length})</span>
@@ -706,5 +821,91 @@ export function ToastHistory({ className, title = "Bildirim geçmişi" }: ToastH
         </ol>
       )}
     </section>
+  );
+}
+
+/* ---------- Başlıktaki zil ---------- */
+
+function BellIcon() {
+  return (
+    <svg className="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15zM10 20.5a2 2 0 0 0 4 0" />
+    </svg>
+  );
+}
+
+export interface ToastHistoryButtonProps {
+  className?: string;
+}
+
+/**
+ * Başlık için zil düğmesi: kaçırılan bildirim sayısını rozetle gösterir, basınca geçmiş paneli açılır.
+ * Panel açılınca kaçırılanlar okundu sayılır. Esc ya da dışarı tıklama paneli kapatır; Esc odağı zile döndürür.
+ */
+export function ToastHistoryButton({ className }: ToastHistoryButtonProps) {
+  const { entries, unread, markRead } = useToastHistory();
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const panelId = useId();
+
+  // Panel açıkken gelen yeni kayıtlar da görülmüş sayılır
+  useEffect(() => {
+    if (open) markRead();
+  }, [open, entries.length, markRead]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: globalThis.PointerEvent) => {
+      if (!wrapRef.current?.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("pointerdown", onDown);
+    return () => document.removeEventListener("pointerdown", onDown);
+  }, [open]);
+
+  const label = unread ? `Bildirim geçmişi, ${unread} kaçırılan bildirim` : "Bildirim geçmişi";
+  return (
+    <div
+      ref={wrapRef}
+      className={cn("relative", className)}
+      onKeyDown={(e) => {
+        if (e.key === "Escape" && open) {
+          e.stopPropagation();
+          setOpen(false);
+          buttonRef.current?.focus();
+        }
+      }}
+    >
+      <button
+        ref={buttonRef}
+        type="button"
+        aria-expanded={open}
+        aria-controls={open ? panelId : undefined}
+        aria-label={label}
+        title={label}
+        onClick={() => setOpen((o) => !o)}
+        className="glass relative inline-flex size-8 items-center justify-center rounded-full border-border-strong/55! text-fg transition-colors hover:border-primary/60! focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary aria-expanded:border-primary/80! aria-expanded:text-primary"
+      >
+        <BellIcon />
+        {unread > 0 && (
+          <span
+            aria-hidden="true"
+            data-testid="toast-unread"
+            className="absolute -top-1 -right-1 h-4 min-w-4 rounded-full bg-primary px-1 text-center text-[10px] leading-4 font-semibold text-on-primary tabular-nums"
+          >
+            {unread > 9 ? "9+" : unread}
+          </span>
+        )}
+      </button>
+      {open && (
+        <div
+          id={panelId}
+          // Telefonda zil kenarda olmayabilir: panel ekrana yaslanır (iki yanda 16 px); genişte zilin altında açılır
+          className="fixed inset-x-4 top-16 z-40 animate-[toast-in_150ms_ease-out] sm:absolute sm:inset-x-auto sm:top-full sm:right-0 sm:mt-2 sm:w-80"
+        >
+          <ToastHistory surface="strong" />
+        </div>
+      )}
+    </div>
   );
 }

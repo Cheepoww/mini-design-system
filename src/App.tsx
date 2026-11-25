@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { MouseEvent, ReactNode } from "react";
-import { Button, ButtonGroup, ConfirmButton, IconButton, ToggleButton, TOAST_CLOSE_REASON_LABELS, ToastHistory, ToastProvider, useToast } from "./components";
+import { Button, ButtonGroup, ConfirmButton, IconButton, ToggleButton, TOAST_CLOSE_REASON_LABELS, ToastHistory, ToastHistoryButton, ToastProvider, useToast } from "./components";
 import type { ButtonSize, ButtonVariant, ToastId, ToastPosition, ToastTone } from "./components";
 import { cn } from "./lib/cn";
 
@@ -965,7 +965,7 @@ const toastControls: Control[] = [
   { name: "duration", type: "select", options: ["2000", "4000", "8000", "0"], hint: "Kaç ms sonra kapanır; 0 = kendiliğinden kapanmaz" },
   { name: "action", type: "boolean", hint: "\"Geri al\" gibi tek bir eylem düğmesi ekler" },
   { name: "dismissible", type: "boolean", hint: "Kapalıysa kullanıcı kapatamaz ve süreyle kapanmaz; yalnızca kod kapatır" },
-  { name: "position", type: "select", options: ["bottom-right", "top-right", "top-center", "bottom-center"], hint: "Bildirimlerin ekrandaki yeri (ToastProvider)" },
+  { name: "position", type: "select", options: ["bottom-right", "bottom-center", "bottom-left", "top-right", "top-center", "top-left"], hint: "Bildirimlerin ekrandaki yeri (ToastProvider)" },
   { name: "stack", type: "boolean", hint: "Yığın görünümü: bildirimler deste gibi durur, üzerine gelince açılır (ToastProvider)" },
 ];
 const toastDefaults: Values = {
@@ -1078,6 +1078,7 @@ function UndoDemo() {
       duration: 6000,
       action: {
         label: "Geri al",
+        countdown: true, // düğmede kalan saniye: "Geri al · 5"
         onClick: () =>
           setItems((p) => {
             const next = [...p];
@@ -1182,7 +1183,7 @@ function DedupeDemo() {
         onClick={() => {
           const n = count + 1;
           setCount(n);
-          toast({ id: "baglanti", tone: "warning", title: "Bağlantı yavaş", description: `${n}. uyarı; yeni bildirim açılmadı, bu güncellendi.` });
+          toast({ id: "baglanti", tone: "warning", title: "Bağlantı yavaş", description: "Yeni bildirim açılmadı; bu güncellendi, kaç kez geldiği yanında yazıyor." });
         }}
       >
         Aynı uyarıyı tekrar gönder
@@ -1284,6 +1285,62 @@ function HiddenTabDemo() {
   );
 }
 
+/** İlerleme bildirimi: dolan çubuk; bitince başarıya döner ve kendiliğinden kapanır */
+function ProgressToastDemo() {
+  const { toast, update } = useToast();
+  const [busy, setBusy] = useState(false);
+  const run = () => {
+    setBusy(true);
+    const id = toast({ tone: "loading", title: "rapor.pdf yükleniyor", progress: 0 });
+    let value = 0;
+    const timer = window.setInterval(() => {
+      value = Math.min(1, value + 0.06 + Math.random() * 0.1);
+      if (value < 1) {
+        update(id, { progress: value });
+        return;
+      }
+      window.clearInterval(timer);
+      update(id, { tone: "success", title: "rapor.pdf yüklendi", progress: undefined });
+      setBusy(false);
+    }, 300);
+  };
+  return (
+    <>
+      <Button variant="secondary" loading={busy} onClick={run}>
+        Dosya yükle (bildirimle)
+      </Button>
+      <span className="text-sm text-fg-muted">Bildirimde dolan çubuk ve yüzde; yükleme sürerken kendiliğinden kapanmaz.</span>
+    </>
+  );
+}
+
+/** İki eylem: ana eylem vurgulu, ikincisi sönük */
+function TwoActionsDemo() {
+  const { toast } = useToast();
+  const [answer, setAnswer] = useState<string | null>(null);
+  return (
+    <>
+      <Button
+        variant="secondary"
+        onClick={() => {
+          setAnswer(null);
+          toast({
+            title: "Ayşe seni \"Kampanya\" projesine davet etti",
+            duration: 10000,
+            action: { label: "Katıl", onClick: () => setAnswer("Katıldın") },
+            secondaryAction: { label: "Reddet", onClick: () => setAnswer("Reddettin") },
+          });
+        }}
+      >
+        Davet bildirimi göster
+      </Button>
+      <span className="text-sm text-fg-muted" aria-live="polite">
+        {answer ?? "Henüz yanıt yok"}
+      </span>
+    </>
+  );
+}
+
 function ToastSection() {
   const [values, setValues] = useUrlValues("toast", toastControls, toastDefaults);
   return (
@@ -1326,7 +1383,7 @@ toast({ tone: "danger", title: "Bağlantı koptu" });` },
         { title: "Geri alınabilir silme: \"Geri al\" + onClose ile kesinleştirme (bildirimi kaydırarak da kapatabilirsin)", content: <UndoDemo />, code: `toast({
   title: \`"\${name}" silindi\`,
   duration: 6000,
-  action: { label: "Geri al", onClick: () => restore(name) },
+  action: { label: "Geri al", onClick: () => restore(name), countdown: true },
   onClose: (reason) => {
     // "Geri al"a basılmadıysa silme kesinleşir
     if (reason !== "action") deleteForever(name);
@@ -1339,7 +1396,7 @@ promise(api.save(profile), {
   success: (name) => \`\${name} kaydedildi\`,
   error: (e) => \`Kaydedilemedi: \${(e as Error).message}\`,
 });` },
-        { title: "Tekrarı önleme: aynı id ile gönderilen bildirim yığılmaz, güncellenir", content: <DedupeDemo />, code: `// Aynı id: yeni bildirim açılmaz, mevcut güncellenir
+        { title: "Tekrarı önleme: aynı id ile gönderilen bildirim yığılmaz, güncellenir ve kaç kez geldiği (×3) yazar", content: <DedupeDemo />, code: `// Aynı id: yeni bildirim açılmaz, mevcut güncellenir
 toast({ id: "baglanti", tone: "warning", title: "Bağlantı yavaş" });` },
         { title: "Sıra: fazla bildirim atılmaz, sırada bekler", content: <QueueDemo />, code: `// Aynı anda en fazla 4 görünür; fazlası sırada bekler
 <ToastProvider max={4}>
@@ -1349,6 +1406,24 @@ toast({ id: "baglanti", tone: "warning", title: "Bağlantı yavaş" });` },
 
 <Button variant="ghost" onClick={dismissAll}>Tümünü kapat</Button>
 // F8: bildirimlere atla · Esc: odaktakini kapat` },
+        {
+          title: "İlerleme bildirimi (progress): yükleme sürerken dolar, bitince başarıya döner",
+          content: <ProgressToastDemo />,
+          code: `const { toast, update } = useToast();
+
+const id = toast({ tone: "loading", title: "rapor.pdf yükleniyor", progress: 0 });
+update(id, { progress: 0.6 }); // ilerledikçe
+update(id, { tone: "success", title: "rapor.pdf yüklendi", progress: undefined }); // bitince`,
+        },
+        {
+          title: "İki eylem: ana eylem vurgulu, ikincisi sönük (secondaryAction)",
+          content: <TwoActionsDemo />,
+          code: `toast({
+  title: 'Ayşe seni "Kampanya" projesine davet etti',
+  action: { label: "Katıl", onClick: join },
+  secondaryAction: { label: "Reddet", onClick: decline },
+});`,
+        },
         { title: "Kapatılamayan önemli bildirim (dismissible: false): sorun çözülünce kod günceller", content: <ConnectionDemo />, code: `const { toast, update } = useToast();
 
 // Bağlantı koptu: kullanıcı kapatamaz, süreyle de kapanmaz
@@ -1361,18 +1436,24 @@ update("connection", { tone: "success", title: "Bağlantı geri geldi", dismissi
 </ToastProvider>` },
         { title: "Sekme gizliyken süre durur", content: <HiddenTabDemo />, code: `// Ek kod gerekmez: sekme arka plandayken süre kendiliğinden durur
 toast({ title: "Sen yokken geldi", duration: 5000 });` },
-        { title: "Bildirim geçmişi: kapananlar burada (bu sayfanın tüm örnekleri)", content: <ToastHistory className="max-w-md" />, code: `<ToastHistory />
+        { title: "Bildirim geçmişi: kapananlar burada. Başlıktaki zil de aynı listeyi açar ve kaçırılanları sayar", content: <ToastHistory className="max-w-md" />, code: `<ToastHistory />
 
 // ya da kendi arayüzünle:
-const { entries, clear } = useToastHistory();` },
+const { entries, unread, markRead, clear } = useToastHistory();
+
+// başlık için hazır zil (kaçırılan sayısı + açılır panel):
+<ToastHistoryButton />` },
       ]}
       props={[
         { name: "tone", type: '"info" | "success" | "warning" | "danger" | "loading"', default: '"info"', description: "Renk ve ikon; danger ekran okuyucuya hemen (alert) okunur; loading spinner gösterir ve kendiliğinden kapanmaz" },
         { name: "title", type: "ReactNode", description: "Başlık (zorunlu)" },
         { name: "description", type: "ReactNode", description: "Başlığın altındaki ikinci satır" },
         { name: "duration", type: "number (ms)", default: "4000", description: "Otomatik kapanma süresi; 0 = kalıcı. Alttaki ince çubuk kalan süreyi gösterir, fare üzerindeyken durur" },
-        { name: "action", type: "{ label; onClick }", description: "Tek eylem düğmesi (ör. Geri al); tıklanınca bildirim kapanır" },
-        { name: "<ToastProvider position>", type: '"top-right" | "bottom-right" | "top-center" | "bottom-center"', default: '"bottom-right"', description: "Bildirimlerin ekrandaki yeri" },
+        { name: "action", type: "{ label; onClick; countdown? }", description: "Ana eylem düğmesi (ör. Geri al); tıklanınca bildirim kapanır. countdown: true ise kalan saniye düğmede yazar (Geri al · 4)" },
+        { name: "secondaryAction", type: "{ label; onClick }", description: "İkinci, sönük eylem (ör. Reddet). Kapanış nedeni \"secondaryAction\"" },
+        { name: "progress", type: "number (0–1)", description: "Dolan çubuk ve yüzde; bu sürede süreyle kapanmaz. update(id, { progress }) ile ilerlet, bitince undefined yap" },
+        { name: "(tekrar sayısı)", type: "otomatik", description: "Aynı id ile tekrar gönderilen bildirimin başlığında ×N görünür; ekran okuyucu \"(N. kez)\" der" },
+        { name: "<ToastProvider position>", type: '"top-left" | "top-center" | "top-right" | "bottom-left" | "bottom-center" | "bottom-right"', default: '"bottom-right"', description: "Bildirimlerin ekrandaki yeri" },
         { name: "onClose", type: "(reason) => void", description: "Kapanınca bir kez çağrılır. reason: timeout, close, action, swipe, escape, dismiss, dismissAll" },
         { name: "<ToastProvider max>", type: "number", default: "4", description: "Aynı anda görünen en fazla bildirim; fazlası atılmaz, sırada bekler (süresi göründüğü an başlar)" },
         { name: "<ToastProvider label>", type: "string", default: '"Bildirimler"', description: "Bölgenin ekran okuyucu adı; birden fazla Provider varsa farklı ver" },
@@ -1381,7 +1462,8 @@ const { entries, clear } = useToastHistory();` },
         { name: "<ToastProvider stack>", type: "boolean", default: "false", description: "Deste görünümü: en fazla 3 kart üst üste görünür; üzerine gelince, odaklanınca veya dokununca açılır ve açıkken süreler durur" },
         { name: "<ToastProvider historyLimit>", type: "number", default: "20", description: "Geçmişte tutulan en fazla kayıt" },
         { name: "<ToastHistory />", type: "{ className?, title? }", description: "Kapanan bildirimlerin listesi: zaman ve kapanma nedeniyle (süre doldu, × ile kapatıldı…); Temizle düğmesi" },
-        { name: "useToastHistory()", type: "{ entries, clear }", description: "Geçmişi kendi arayüzünle göstermek için: entries (en yenisi başta) ve clear()" },
+        { name: "<ToastHistoryButton />", type: "{ className? }", description: "Başlık için zil: kaçırılan (süresi dolan ya da kodla kapanan) bildirim sayısı rozetle görünür; basınca geçmiş paneli açılır, Esc ile kapanır" },
+        { name: "useToastHistory()", type: "{ entries, unread, markRead, clear }", description: "Geçmişi kendi arayüzünle göstermek için: entries (en yenisi başta), unread (kaçırılan sayısı), markRead() ve clear()" },
         { name: "<ToastProvider hotkey>", type: "string | false", default: '"F8"', description: "Odağı bildirimlere taşıyan kısayol; odaktaki bildirim Esc ile kapanır" },
         { name: "useToast()", type: "{ toast, update, dismiss, dismissAll, promise }", description: "toast(options) id döndürür; update(id, options) içeriği değiştirir; dismiss(id) / dismissAll() kapatır" },
         { name: "promise(p, { loading, success, error })", type: "Promise<T>", description: "İşlem sürerken yükleniyor bildirimi; bitince başarı ya da hata. success/error metin veya sonuca göre fonksiyon olabilir" },
@@ -1522,7 +1604,10 @@ export function App() {
             );
           })}
         </nav>
-        <ThemeButton />
+        <div className="flex items-center gap-2">
+          <ToastHistoryButton />
+          <ThemeButton />
+        </div>
       </header>
       <main className="mx-auto flex w-full max-w-5xl flex-col gap-16 px-2 py-6 sm:px-4">
         <ButtonSection />
