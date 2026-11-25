@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { MouseEvent, ReactNode } from "react";
-import { Button, ButtonGroup, ConfirmButton, IconButton, TOAST_CLOSE_REASON_LABELS, ToastHistory, ToastProvider, useToast } from "./components";
+import { Button, ButtonGroup, ConfirmButton, IconButton, ToggleButton, TOAST_CLOSE_REASON_LABELS, ToastHistory, ToastProvider, useToast } from "./components";
 import type { ButtonSize, ButtonVariant, ToastId, ToastPosition, ToastTone } from "./components";
 import { cn } from "./lib/cn";
 
@@ -356,6 +356,11 @@ const EditIcon = () => (
     <path d="M4 20h4L19 9l-4-4L4 16v4z" />
   </svg>
 );
+const UploadIcon = () => (
+  <svg className="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M12 15V4M7 9l5-5 5 5M5 20h14" />
+  </svg>
+);
 const CopyIcon = () => (
   <svg className="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
     <path d="M9 9h10v10H9zM5 15V5h10" />
@@ -375,6 +380,10 @@ const buttonControls: Control[] = [
   { name: "loadingText", type: "text", hint: "Yüklenirken metnin yerine geçer (loading açıkken görünür)" },
   { name: "success", type: "boolean", hint: "✓ ikonu gösterir: işlem bitti geri bildirimi; genişlik sabit kalır" },
   { name: "successText", type: "text", hint: "success açıkken metnin yerine geçer (ör. Kaydedildi)" },
+  { name: "error", type: "boolean", hint: "✕ ikonu, kırmızı renk ve kısa sallanma: işlem başarısız" },
+  { name: "errorText", type: "text", hint: "error açıkken metnin yerine geçer (ör. Kaydedilemedi)" },
+  { name: "progress", type: "select", options: ["yok", "0.3", "0.7"], hint: "İlerleme: buton soldan sağa dolar ve yüzdeyi gösterir" },
+  { name: "shortcut", type: "text", hint: "Klavye kısayolu, ör. Mod+K (Mod = Mac'te ⌘, diğerlerinde Ctrl)" },
   { name: "disabled", type: "boolean", hint: "Butonu pasif yapar" },
   { name: "disabledReason", type: "text", hint: "Pasifliğin nedeni: buton odaklanabilir kalır, neden üzerine gelince görünür" },
   { name: "href", type: "text", hint: "Verilirse <a> (bağlantı) olarak çizilir; görünüm aynı kalır" },
@@ -389,6 +398,10 @@ const buttonDefaults: Values = {
   loadingText: "",
   success: false,
   successText: "",
+  error: false,
+  errorText: "",
+  progress: "yok",
+  shortcut: "",
   disabled: false,
   disabledReason: "",
   href: "",
@@ -405,6 +418,10 @@ function buttonCode(v: Values) {
   if (v.loadingText) a.push(`loadingText="${v.loadingText}"`);
   if (v.success) a.push("success");
   if (v.successText) a.push(`successText="${v.successText}"`);
+  if (v.error) a.push("error");
+  if (v.errorText) a.push(`errorText="${v.errorText}"`);
+  if (v.progress !== "yok") a.push(`progress={${v.progress}}`);
+  if (v.shortcut) a.push(`shortcut="${v.shortcut}"`);
   if (v.disabled) a.push("disabled");
   if (v.disabledReason) a.push(`disabledReason="${v.disabledReason}"`);
   if (v.fullWidth) a.push("fullWidth");
@@ -412,31 +429,124 @@ function buttonCode(v: Values) {
   return `${a.length ? `<Button ${a.join(" ")}>` : "<Button>"}${v.children}</Button>`;
 }
 
-/** Bir işlemin üç anı: yükleniyor → ✓ kaydedildi (kısa süre) → normal; genişlik hiç zıplamaz */
+const wait = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
+
+/**
+ * Kendi kendini yöneten buton: onClick bir Promise döndürünce (async) buton yükleniyor → ✓ / ✕ durumlarını
+ * kendisi gösterir. Hiçbir state tutmaya gerek yok.
+ */
 function SaveDemo() {
-  const [state, setState] = useState<"idle" | "saving" | "saved">("idle");
-  useEffect(() => {
-    if (state !== "saved") return;
-    const t = window.setTimeout(() => setState("idle"), 1800);
-    return () => window.clearTimeout(t);
-  }, [state]);
   return (
     <div className="flex flex-wrap items-center gap-3">
-      <Button
-        loading={state === "saving"}
-        loadingText="Kaydediliyor…"
-        success={state === "saved"}
-        successText="Kaydedildi"
-        onClick={() => {
-          if (state !== "idle") return;
-          setState("saving");
-          window.setTimeout(() => setState("saved"), 1200);
-        }}
-      >
+      <Button loadingText="Kaydediliyor…" successText="Kaydedildi" onClick={async () => wait(1200)}>
         Değişiklikleri kaydet
       </Button>
-      <span className="text-sm text-fg-muted">Sonuç butonun üstünde görünür; yanındaki yazı yerinde kalır.</span>
+      <Button
+        variant="secondary"
+        loadingText="Gönderiliyor…"
+        errorText="Gönderilemedi"
+        onClick={async () => {
+          await wait(1200);
+          throw new Error("Sunucuya ulaşılamadı");
+        }}
+      >
+        Hatalı işlem dene
+      </Button>
+      <span className="w-full text-sm text-fg-muted">Sonuç butonun üstünde görünür; buton genişliği ve yanındaki yazı yerinde kalır.</span>
     </div>
+  );
+}
+
+/** Klavye kısayolu: Ctrl+S (Mac'te ⌘S) butona basılmış gibi çalışır; tarayıcının "sayfayı kaydet"i açılmaz */
+function ShortcutDemo() {
+  const { toast } = useToast();
+  return (
+    <>
+      <Button
+        shortcut="Mod+S"
+        loadingText="Kaydediliyor…"
+        successText="Kaydedildi"
+        onClick={async () => {
+          await wait(800);
+          toast({ tone: "success", title: "Kısayolla kaydedildi", duration: 2000 });
+        }}
+      >
+        Kaydet
+      </Button>
+      <span className="text-sm text-fg-muted">Sayfanın herhangi bir yerinde, bir yazı alanındayken bile çalışır. Dokunmatik ekranda tuş etiketi gizlenir.</span>
+    </>
+  );
+}
+
+const BoldIcon = () => (
+  <svg className="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M7 5h6a3.5 3.5 0 0 1 0 7H7zM7 12h7a3.5 3.5 0 0 1 0 7H7z" />
+  </svg>
+);
+const ItalicIcon = () => (
+  <svg className="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+    <path d="M10 5h8M6 19h8M14 5l-4 14" />
+  </svg>
+);
+
+/** Aç/kapa butonları: yazı değişmez, durum "basılı" olarak söylenir */
+function ToggleDemo() {
+  const [bold, setBold] = useState(true);
+  const [italic, setItalic] = useState(false);
+  const [muted, setMuted] = useState(false);
+  return (
+    <div className="flex flex-wrap items-center gap-3">
+      <ButtonGroup label="Metin biçimi">
+        <ToggleButton size="sm" pressed={bold} onPressedChange={setBold} aria-label="Kalın" title="Kalın" className="px-2!">
+          <BoldIcon />
+        </ToggleButton>
+        <ToggleButton size="sm" pressed={italic} onPressedChange={setItalic} aria-label="İtalik" title="İtalik" className="px-2!">
+          <ItalicIcon />
+        </ToggleButton>
+      </ButtonGroup>
+      <ToggleButton size="sm" pressed={muted} onPressedChange={setMuted}>
+        Sessize al
+      </ToggleButton>
+      <p className={cn("text-sm", bold && "font-bold", italic && "italic")}>Örnek metin {muted ? "(sessizde)" : ""}</p>
+    </div>
+  );
+}
+
+/** İlerleme gösteren buton: yükleme sürerken dolar, bitince ✓ */
+function ProgressDemo() {
+  const [progress, setProgress] = useState<number | undefined>(undefined);
+  const [done, setDone] = useState(false);
+  useEffect(() => {
+    if (progress === undefined) return;
+    if (progress >= 1) {
+      const t = window.setTimeout(() => {
+        setProgress(undefined);
+        setDone(true);
+      }, 250);
+      return () => window.clearTimeout(t);
+    }
+    const t = window.setTimeout(() => setProgress((p) => Math.min(1, (p ?? 0) + 0.08 + Math.random() * 0.08)), 180);
+    return () => window.clearTimeout(t);
+  }, [progress]);
+  useEffect(() => {
+    if (!done) return;
+    const t = window.setTimeout(() => setDone(false), 1800);
+    return () => window.clearTimeout(t);
+  }, [done]);
+  return (
+    <>
+      <Button
+        progress={progress}
+        loadingText="Yükleniyor"
+        success={done}
+        successText="Yüklendi"
+        leftIcon={<UploadIcon />}
+        onClick={() => setProgress(0)}
+      >
+        Dosyayı yükle
+      </Button>
+      <span className="text-sm text-fg-muted">Buton soldan sağa dolar; yüzde yazının yanında görünür.</span>
+    </>
   );
 }
 
@@ -605,6 +715,10 @@ function ButtonPreview({ values, onPress }: { values: Values; onPress: (title: s
     loadingText: (values.loadingText as string) || undefined,
     success: values.success as boolean,
     successText: (values.successText as string) || undefined,
+    error: values.error as boolean,
+    errorText: (values.errorText as string) || undefined,
+    progress: values.progress === "yok" ? undefined : Number(values.progress),
+    shortcut: (values.shortcut as string) || undefined,
     disabled: values.disabled as boolean,
     disabledReason: (values.disabledReason as string) || undefined,
     fullWidth: values.fullWidth as boolean,
@@ -636,7 +750,7 @@ function ButtonSection() {
     <ComponentSection
       id="button"
       title="Button"
-      description="Kullanıcının bir eylem başlatması için. Dört varyant, üç boyut; loading, success ve disabled durumlarını destekler. Pasifse nedenini söyleyebilir (disabledReason). href verilince bağlantı (<a>) olarak çizilir. Geri alınamaz işlemler için iki adımlı ConfirmButton vardır."
+      description="Kullanıcının bir eylem başlatması için. Dört varyant, üç boyut; loading, success, error, progress ve disabled durumlarını destekler; onClick async ise bu durumları kendisi yönetir. Klavye kısayolu alabilir. Pasifse nedenini söyleyebilir (disabledReason). href verilince bağlantı (<a>) olarak çizilir. Geri alınamaz işlemler için iki adımlı ConfirmButton vardır."
       controls={buttonControls}
       values={values}
       defaults={buttonDefaults}
@@ -654,6 +768,8 @@ function ButtonSection() {
           "Geri alınamaz işlemler için danger; tek tıkla yanlışlıkla yapılmasın diye ConfirmButton (ör. kalıcı sil).",
           "Küçük, sık işlemlerin sonucunu (kopyalandı) bildirim yerine butonun kendisinde göstermek için success.",
           "Bir koşul sağlanana kadar kullanılamayan buton için disabled + disabledReason (neden söylenir).",
+          "Sunucuya giden işlemlerde onClick'ten Promise döndür: yükleniyor, başarı ve hata durumlarını buton kendisi gösterir.",
+          "Sık kullanılan ana işlem için (kaydet, ara) shortcut; bir şeyi açıp kapatmak için ToggleButton.",
           "Buton görünümünde ama başka sayfaya götüren öğe için href (bağlantı olarak çizilir).",
           "Yer darsa ve ikon herkesçe biliniyorsa IconButton (düzenle, sil, yenile).",
           "Aynı konuya ait birkaç seçenekten biri seçilecekse ButtonGroup (Gün / Hafta / Ay).",
@@ -665,6 +781,8 @@ function ButtonSection() {
           "Butonu pasif yapıp nedenini söylememek: disabledReason ver.",
           "Uzun işlemlerde loading olmadan bırakmak: kullanıcı tekrar tekrar tıklar.",
           "Geri alınabilen işlemde ConfirmButton: gereksiz ikinci tık; işlemi yap, bildirimde \"Geri al\" sun.",
+          "ToggleButton'ın yazısını duruma göre değiştirmek (\"Sessize al\" → \"Sesi aç\"): ekran okuyucu hem yazıyı hem durumu okur, kafa karıştırır.",
+          "Tarayıcının bilinen kısayollarını (Ctrl+T, Ctrl+W) ezmek: kullanıcı sekmeyi açıp kapatamaz olur.",
         ],
       }}
       examples={[
@@ -708,11 +826,14 @@ function ButtonSection() {
             </>
           ),
         },
-        { title: "Gerçek kullanım: kaydet → yükleniyor (loadingText) → ✓ kaydedildi (success) → normal", content: <SaveDemo /> },
+        { title: "Kendi kendini yöneten buton: onClick async ise yükleniyor → ✓ ya da ✕ (state gerekmez)", content: <SaveDemo /> },
         { title: "Başarı geri bildirimi: kopyala → ✓ kopyalandı (bildirim açmadan)", content: <CopyDemo /> },
         { title: "Nedenini söyleyen pasif buton (disabledReason)", content: <DisabledReasonDemo /> },
         { title: "ConfirmButton: iki adımlı onay (3 sn içinde tekrar bas; Esc veya dışarı tıklayınca vazgeçilir)", content: <ConfirmDemo /> },
         { title: "Bağlantı olarak buton (href → <a>)", content: <LinkDemo /> },
+        { title: "Klavye kısayolu (shortcut): Ctrl+S / ⌘S", content: <ShortcutDemo /> },
+        { title: "ToggleButton: aç/kapa (yazı değişmez, durum \"basılı\" olarak okunur)", content: <ToggleDemo /> },
+        { title: "İlerleme gösteren buton (progress)", content: <ProgressDemo /> },
         { title: "IconButton: yalnızca ikon (label zorunlu, üzerine gelince ipucu)", content: <IconButtonDemo /> },
         { title: "ButtonGroup: tek seçim (ok tuşlarıyla gezilir, pasif seçenek atlanır)", content: <RangeDemo /> },
         { title: "ButtonGroup: yapışık eylem butonları", content: <ActionGroupDemo /> },
@@ -724,6 +845,11 @@ function ButtonSection() {
         { name: "loadingText", type: "ReactNode", description: "Yüklenirken metnin yerine gösterilir (ör. \"Kaydediliyor…\")" },
         { name: "success", type: "boolean", default: "false", description: "✓ ikonu gösterir (işlem bitti); genişlik korunur. Kısa süre sonra false yapmak sana kalır" },
         { name: "successText", type: "ReactNode", description: "success iken metnin yerine gösterilir (ör. \"Kaydedildi\"); değişiklik ekran okuyucuya duyurulur" },
+        { name: "onClick", type: "(e) => unknown", description: "Promise döndürürse (async) buton kendini yönetir: sürerken yükleniyor, bitince ✓ (successText), hata olursa ✕ (errorText); başka state gerekmez" },
+        { name: "error / errorText", type: "boolean, ReactNode", default: "false", description: "✕ ikonu, kırmızı renk ve kısa sallanma (hareket azaltma tercihinde sallanmaz); errorText metnin yerine geçer" },
+        { name: "feedbackDuration", type: "number (ms)", default: "1800", description: "async onClick sonrası ✓ / ✕ ne kadar görünsün" },
+        { name: "progress", type: "number (0–1)", description: "Buton soldan sağa dolar ve yüzdeyi gösterir; bu sürede tıklanamaz. Bitince undefined yap" },
+        { name: "shortcut", type: "string", description: "Klavye kısayolu (ör. \"Mod+S\": Mac'te ⌘S, diğerlerinde Ctrl+S). Basılınca buton tıklanmış gibi çalışır; tuş etiketi görünür, ekran okuyucuya aria-keyshortcuts ile söylenir. Tek tuşlu kısayollar yazı yazarken çalışmaz" },
         { name: "disabled", type: "boolean", default: "false", description: "Butonu pasif yapar" },
         { name: "disabledReason", type: "string", description: "Pasifliğin nedeni. Verilirse buton Tab ile odaklanabilir kalır ama çalışmaz; neden üzerine gelince, odaklanınca ve dokununca görünür, ekran okuyucuya açıklama olarak okunur" },
         { name: "href", type: "string", description: "Verilirse <a> çizilir (target, rel gibi bağlantı prop'ları da geçer). Pasifken href kaldırılır" },
@@ -734,6 +860,7 @@ function ButtonSection() {
         { name: "ref", type: "Ref<HTMLButtonElement | HTMLAnchorElement>", description: "Öğeye doğrudan erişim (ör. odak vermek)" },
         { name: "buttonClasses()", type: "({ variant, size, fullWidth }) => string", description: "Başka bir öğeye (ör. dosya seçen <label>) buton görünümü vermek için sınıflar" },
         { name: "<ConfirmButton onConfirm>", type: "() => void", description: "İki adımlı buton: ilk tıklama onay ister, ikinci tıklama onConfirm'i çağırır. Çift tıklama sayılmaz" },
+        { name: "<ToggleButton pressed onPressedChange>", type: "boolean, (pressed) => void", description: "Aç/kapa buton (ör. Kalın). Kontrolsüz kullanım için defaultPressed. Yazısı duruma göre değişmemeli; durum aria-pressed ile söylenir" },
         { name: "<ConfirmButton confirmText confirmTimeout>", type: "ReactNode, number", default: '"Emin misin? Tekrar bas", 3000', description: "Onay beklerken yazı ve bekleme süresi (ms); süre dolunca, odak ayrılınca veya Esc ile vazgeçilir" },
         { name: "<IconButton icon label>", type: "ReactNode, string", description: "Kare, yalnızca ikonlu buton; label zorunlu (ekran okuyucu adı + ipucu). Varsayılan varyant ghost" },
         { name: "<ButtonGroup label>", type: "string", description: "Grubun ekran okuyucu adı (zorunlu)" },

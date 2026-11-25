@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { Button, ButtonGroup, CONFIRM_GUARD_MS, ConfirmButton, IconButton } from "./Button";
+import { BUTTON_FEEDBACK_MS, Button, ButtonGroup, CONFIRM_GUARD_MS, ConfirmButton, IconButton, ToggleButton } from "./Button";
 
 describe("Button", () => {
   it("metnini gösterir ve tıklanınca onClick çağrılır", async () => {
@@ -312,5 +312,168 @@ describe("ConfirmButton", () => {
     fireEvent.click(button);
     fireEvent.blur(button);
     expect(button).toHaveAccessibleName("Sil");
+  });
+});
+
+describe("Button: kendi kendini yöneten (async onClick) ve hata durumu", () => {
+  afterEach(() => vi.useRealTimers());
+
+  it("Promise sürerken yükleniyor, bitince ✓ successText, sonra normale döner", async () => {
+    vi.useFakeTimers();
+    let finish!: () => void;
+    render(
+      <Button loadingText="Kaydediliyor…" successText="Kaydedildi" onClick={() => new Promise<void>((r) => (finish = r))}>
+        Kaydet
+      </Button>,
+    );
+    const button = screen.getByRole("button", { name: "Kaydet" });
+    fireEvent.click(button);
+    expect(button).toBeDisabled();
+    expect(button).toHaveAttribute("aria-busy", "true");
+    expect(button).toHaveAccessibleName("Kaydediliyor…");
+
+    await act(async () => finish());
+    expect(button).toHaveAccessibleName("Kaydedildi");
+    expect(button).not.toBeDisabled();
+
+    act(() => vi.advanceTimersByTime(BUTTON_FEEDBACK_MS));
+    expect(button).toHaveAccessibleName("Kaydet");
+  });
+
+  it("Promise hata verirse ✕ errorText gösterir ve kırmızıya döner", async () => {
+    vi.useFakeTimers();
+    let fail!: (e: Error) => void;
+    render(
+      <Button errorText="Kaydedilemedi" onClick={() => new Promise<void>((_, reject) => (fail = reject))}>
+        Kaydet
+      </Button>,
+    );
+    const button = screen.getByRole("button", { name: "Kaydet" });
+    fireEvent.click(button);
+    await act(async () => fail(new Error("ağ yok")));
+    expect(button).toHaveAccessibleName("Kaydedilemedi");
+    expect(button.className).toContain("bg-danger");
+    expect(button.className).toContain("button-shake");
+  });
+
+  it("işlem sürerken tekrar tıklama yeni işlem başlatmaz", () => {
+    const onClick = vi.fn(() => new Promise<void>(() => {}));
+    render(<Button onClick={onClick}>Gönder</Button>);
+    const button = screen.getByRole("button", { name: "Gönder" });
+    fireEvent.click(button);
+    fireEvent.click(button);
+    expect(onClick).toHaveBeenCalledTimes(1);
+  });
+
+  it("error prop'u ile de hata gösterilir", () => {
+    render(
+      <Button error errorText="Olmadı">
+        Gönder
+      </Button>,
+    );
+    expect(screen.getByRole("button", { name: "Olmadı" }).querySelector("svg")).toBeInTheDocument();
+  });
+});
+
+describe("Button: klavye kısayolu", () => {
+  it("kısayola basınca tıklanır; etiket görünür, aria-keyshortcuts verilir", () => {
+    const onClick = vi.fn();
+    render(
+      <Button shortcut="Ctrl+S" onClick={onClick}>
+        Kaydet
+      </Button>,
+    );
+    const button = screen.getByRole("button", { name: "Kaydet" });
+    expect(button).toHaveAttribute("aria-keyshortcuts", "Control+S");
+    expect(button.querySelector("kbd")).toHaveTextContent("Ctrl S");
+
+    const event = new KeyboardEvent("keydown", { key: "s", ctrlKey: true, cancelable: true });
+    window.dispatchEvent(event);
+    expect(onClick).toHaveBeenCalledTimes(1);
+    expect(event.defaultPrevented).toBe(true); // tarayıcının "sayfayı kaydet"i açılmaz
+  });
+
+  it("tek tuşlu kısayol yazı alanında çalışmaz; pasif butonda hiç çalışmaz", () => {
+    const onClick = vi.fn();
+    const { rerender } = render(
+      <>
+        <input aria-label="Ara" />
+        <Button shortcut="n" onClick={onClick}>
+          Yeni
+        </Button>
+      </>,
+    );
+    fireEvent.keyDown(screen.getByLabelText("Ara"), { key: "n" });
+    expect(onClick).not.toHaveBeenCalled();
+    fireEvent.keyDown(document.body, { key: "n" });
+    expect(onClick).toHaveBeenCalledTimes(1);
+
+    rerender(
+      <>
+        <input aria-label="Ara" />
+        <Button shortcut="n" onClick={onClick} disabled>
+          Yeni
+        </Button>
+      </>,
+    );
+    fireEvent.keyDown(document.body, { key: "n" });
+    expect(onClick).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("Button: ilerleme (progress)", () => {
+  it("yüzdeyi gösterir, dolumu çizer ve tıklanamaz", () => {
+    const onClick = vi.fn();
+    render(
+      <Button progress={0.42} onClick={onClick}>
+        Yükle
+      </Button>,
+    );
+    const button = screen.getByRole("button", { name: /Yükle/ });
+    expect(button).toHaveTextContent("%42");
+    expect(button).toHaveAttribute("aria-busy", "true");
+    expect(button).toBeDisabled();
+    expect(button.querySelector("span[aria-hidden]")).toHaveStyle({ width: "42%" });
+  });
+});
+
+describe("ToggleButton", () => {
+  it("basınca aria-pressed değişir, yazı aynı kalır", () => {
+    const onChange = vi.fn();
+    render(<ToggleButton onPressedChange={onChange}>Sessize al</ToggleButton>);
+    const button = screen.getByRole("button", { name: "Sessize al" });
+    expect(button).toHaveAttribute("aria-pressed", "false");
+    fireEvent.click(button);
+    expect(button).toHaveAttribute("aria-pressed", "true");
+    expect(button).toHaveAccessibleName("Sessize al");
+    expect(onChange).toHaveBeenCalledWith(true);
+  });
+
+  it("kontrollü kullanımda durum dışarıdan gelir", () => {
+    function Controlled() {
+      const [on, setOn] = useState(true);
+      return (
+        <ToggleButton pressed={on} onPressedChange={setOn}>
+          Kalın
+        </ToggleButton>
+      );
+    }
+    render(<Controlled />);
+    const button = screen.getByRole("button", { name: "Kalın" });
+    expect(button).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(button);
+    expect(button).toHaveAttribute("aria-pressed", "false");
+  });
+});
+
+describe("IconButton: async durum", () => {
+  it("async onClick sürerken kendi ikonu CSS ile gizlenecek şekilde işaretlenir", () => {
+    render(<IconButton icon={<svg data-testid="ikon" />} label="Yenile" onClick={() => new Promise<void>(() => {})} />);
+    const button = screen.getByRole("button", { name: "Yenile" });
+    fireEvent.click(button);
+    // Spinner butonun doğrudan çocuğu; kendi ikonu data-icon içinde (":has(>svg)" kuralı onu gizler)
+    expect(button.querySelector(":scope > svg")).toBeInTheDocument();
+    expect(screen.getByTestId("ikon").closest("[data-icon]")).toBeInTheDocument();
+    expect(button.className).toContain("[&:has(>svg)>[data-icon]]:hidden");
   });
 });

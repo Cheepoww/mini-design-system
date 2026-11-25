@@ -209,6 +209,12 @@
   from { transform: scaleX(1); }
   to { transform: scaleX(0); }
 }
+/* Butonda hata: kısa, küçük bir yatay sallanma */
+@keyframes button-shake {
+  0%, 100% { translate: 0; }
+  20%, 60% { translate: -3px 0; }
+  40%, 80% { translate: 3px 0; }
+}
 /* Sayfa değişiminde içerik yalnızca saydamlıkla belirir (kayma yok) */
 @keyframes page-in {
   from { opacity: 0; }
