@@ -1,0 +1,8 @@
+node_modules
+dist
+# Yerel geliştirme aracı ayarları (bu makineye özel)
+.claude/
+*.tsbuildinfo
+.env
+.env.*
+!.env.example

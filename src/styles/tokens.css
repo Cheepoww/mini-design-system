@@ -1,0 +1,261 @@
+@import "tailwindcss";
+
+/*
+  Design token'lar: tüm bileşenler renk/köşe/gölge değerlerini BURADAN alır.
+  @theme içindeki her değişken Tailwind sınıfına dönüşür:
+  --color-primary  ->  bg-primary, text-primary, border-primary ...
+
+  Görsel yön: buzlu cam (glassmorphism)
+  - Zeminde pembe, turuncu ve mavi ışıklar; paneller bunların üstünde yarı saydam, bulanıklaştıran cam.
+  - Belirgin yuvarlak köşeler (kontrol 12 px, panel 20 px), hap biçimli rozet ve anahtarlar.
+  - Okunabilirlik: metin renkleri camın en parlak noktası (ışık lekesinin merkezi) hesaba katılarak
+    seçildi; tüm çiftler WCAG AA'yı geçer. Üstte açılan katmanlar (modal, menü) daha opak camdır.
+  - "Saydamlığı azalt" sistem ayarı açıksa cam, opak panele dönüşür.
+*/
+@theme {
+  /* Gövde ve başlık: geometrik sans-serif; projeden yüklenir, Türkçe karakterli */
+  --font-sans: "Plus Jakarta Sans Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Outfit Variable", ui-sans-serif, system-ui, sans-serif;
+
+  /* Marka */
+  --color-primary: #a3285f;
+  --color-primary-hover: #87204e;
+  --color-primary-soft: #f8dfea;
+
+  /* Anlam renkleri (durumlar) */
+  --color-success: #2f6b3a;
+  --color-success-soft: #e2f0df;
+  --color-warning: #8a5300;
+  --color-warning-soft: #f8ead3;
+  --color-danger: #b3321f;
+  --color-danger-hover: #962917;
+  --color-danger-soft: #fae0d9;
+  --color-info: #2c5a85;
+  --color-info-soft: #deeaf6;
+
+  /* "on-*": o rengin DOLU zemini üstündeki yazı rengi (ör. primary buton yazısı).
+     WCAG AA için kontrast en az 4.5 olmalı; Tokenlar sayfası bunu ölçer. */
+  --color-on-primary: #ffffff;
+  --color-on-success: #ffffff;
+  --color-on-warning: #ffffff;
+  --color-on-danger: #ffffff;
+  --color-on-info: #ffffff;
+
+  /* Nötr yüzeyler ve metin. surface: cam panellerin opak karşılığı (kontrast hesabı ve form alanları) */
+  --color-surface: #fdf9fa;
+  --color-surface-muted: #f5eef1;
+  --color-border: #ead9e0;
+  --color-border-strong: #95808a; /* form çerçeveleri: zeminle 3:1 */
+  --color-fg: #23181d;
+  --color-fg-muted: #54444c; /* güçlü renk geçişinde de ≥ 5:1 */
+  --color-chrome: #f7e3ec;
+
+  /* Grafik ve istatistik ikonları için vurgu renkleri */
+  --color-accent-pink: #e0518f;
+  --color-accent-amber: #e2a03a;
+  --color-accent-blue: #5b8ed8;
+  --color-accent-orange: #e8743a;
+
+  /* Köşe yuvarlama: belirgin */
+  --radius-control: 0.75rem;
+  --radius-card: 1.25rem;
+
+  /* Gölgeler */
+  --shadow-overlay: 0 2px 6px rgb(60 20 40 / 0.08), 0 18px 48px rgb(60 20 40 / 0.18);
+}
+
+/* Cam ve arka plan değişkenleri (Tailwind sınıfına dönüşmeleri gerekmiyor) */
+:root {
+  color-scheme: light;
+  --glass-bg: rgb(255 255 255 / 0.55);
+  --glass-blur: 22px; /* tema düzenleyiciden değiştirilebilir; kenar çubuğu +2, üst katmanlar +6 */
+  --glass-bg-strong: rgb(255 252 253 / 0.9);
+  --glass-border: rgb(150 80 110 / 0.16);
+  --glass-highlight: rgb(255 255 255 / 0.8);
+  --shadow-glass: 0 8px 30px rgb(120 50 80 / 0.1);
+  --app-bg: #f7f0f3;
+  /* Renk geçişi belirgin; metin kontrastı en yoğun noktaya göre ölçüldü (gövde metni ≥ 5:1) */
+  --app-glow:
+    radial-gradient(ellipse 65% 55% at 8% 6%, rgb(236 72 153 / 0.34), transparent 72%),
+    radial-gradient(ellipse 50% 45% at 95% 10%, rgb(96 140 230 / 0.24), transparent 70%),
+    radial-gradient(ellipse 60% 50% at 85% 100%, rgb(249 140 70 / 0.28), transparent 70%),
+    radial-gradient(ellipse 50% 40% at 35% 70%, rgb(236 72 153 / 0.18), transparent 72%);
+  --sidebar-gradient: linear-gradient(170deg, rgb(236 72 153 / 0.2), rgb(255 255 255 / 0.5) 55%, rgb(255 255 255 / 0.45));
+}
+
+/*
+  Karanlık tema: yalnızca token DEĞERLERİ değişir, isimleri aynı kalır.
+  <html data-theme="dark"> ile açılır.
+*/
+:root[data-theme="dark"] {
+  color-scheme: dark; /* native select, checkbox, kaydırma çubukları da koyulaşır */
+
+  --color-primary: #f080ad;
+  --color-primary-hover: #f6a0c3;
+  --color-primary-soft: rgb(240 128 173 / 0.12); /* %12: ışık merkezinde bile rozet metni 4.5:1 */
+
+  --color-success: #8fd19a;
+  --color-success-soft: rgb(143 209 154 / 0.14);
+  --color-warning: #f0bd6a;
+  --color-warning-soft: rgb(240 189 106 / 0.14);
+  --color-danger: #f59a84;
+  --color-danger-hover: #f8b3a2;
+  --color-danger-soft: rgb(245 154 132 / 0.14);
+  --color-info: #94bdf0;
+  --color-info-soft: rgb(148 189 240 / 0.14);
+
+  --color-on-primary: #2c0a19;
+  --color-on-success: #10240f;
+  --color-on-warning: #2a1b04;
+  --color-on-danger: #2e0f08;
+  --color-on-info: #0e1c2d;
+
+  --color-surface: #1f141a;
+  --color-surface-muted: #140c11;
+  --color-border: rgb(255 255 255 / 0.1);
+  --color-border-strong: #8a7480;
+  --color-fg: #f7ecf1;
+  --color-fg-muted: #d4c0c9; /* güçlü renk geçişinde de ≥ 5:1 */
+  --color-chrome: #2c1622;
+
+  --color-accent-pink: #f080ad;
+  --color-accent-amber: #f0bd6a;
+  --color-accent-blue: #7ea7e6;
+  --color-accent-orange: #f08a52;
+
+  --shadow-overlay: 0 2px 8px rgb(0 0 0 / 0.4), 0 24px 60px rgb(0 0 0 / 0.55);
+
+  --glass-bg: rgb(48 26 38 / 0.5);
+  --glass-bg-strong: rgb(34 19 27 / 0.9);
+  --glass-border: rgb(255 255 255 / 0.09);
+  --glass-highlight: rgb(255 255 255 / 0.07);
+  --shadow-glass: 0 12px 40px rgb(0 0 0 / 0.35);
+  --app-bg: #0e090c;
+  /* Pembe baskın: iki köşede ve ortada pembe; mavi ve turuncu yalnızca yardımcı vurgu */
+  --app-glow:
+    radial-gradient(ellipse 70% 55% at 10% 4%, rgb(224 56 140 / 0.52), transparent 72%),
+    radial-gradient(ellipse 40% 35% at 96% 8%, rgb(70 100 200 / 0.18), transparent 70%),
+    radial-gradient(ellipse 55% 45% at 88% 100%, rgb(234 100 30 / 0.24), transparent 70%),
+    radial-gradient(ellipse 60% 45% at 40% 65%, rgb(190 40 120 / 0.34), transparent 72%),
+    radial-gradient(ellipse 50% 45% at 5% 100%, rgb(200 50 130 / 0.3), transparent 70%);
+  --sidebar-gradient: linear-gradient(170deg, rgb(190 45 110 / 0.5), rgb(90 25 58 / 0.45) 50%, rgb(45 18 32 / 0.45));
+}
+
+/* Gerekirse bileşenlerde "dark:..." sınıfı yazılabilsin */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+/*
+  PERFORMANS: backdrop-filter (bulanıklaştırma) çok pahalıdır; kaydırırken her karede, her panelin
+  arkası yeniden bulanıklaştırılır. Ama içerik panellerinin arkasında yalnızca zaten yumuşak olan
+  ışık lekeleri var; onları bulanıklaştırmak gözle görülür bir fark yaratmıyordu.
+  Bu yüzden:
+  - glass        : sayfadaki sabit paneller. Yarı saydam, BULANIKLAŞTIRMA YOK (hızlı).
+  - glass-float  : altından içerik kayan öğeler (yapışkan üst çubuk). Gerçek buzlu cam.
+  - glass-strong : üstte açılan katmanlar (modal, menü, bildirim). Gerçek buzlu cam, daha opak.
+*/
+
+/* Sayfadaki sabit cam panel */
+@utility glass {
+  background-color: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--shadow-glass), inset 0 1px 0 var(--glass-highlight);
+}
+/* Altından içerik kayan cam (yapışkan üst çubuk): burada bulanıklık gerçekten görünür */
+@utility glass-float {
+  background-color: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--shadow-glass), inset 0 1px 0 var(--glass-highlight);
+  backdrop-filter: blur(var(--glass-blur)) saturate(150%);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(150%);
+}
+/* Üstte açılan katmanlar: metin okunabilsin diye daha opak cam */
+@utility glass-strong {
+  background-color: var(--glass-bg-strong);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--shadow-overlay), inset 0 1px 0 var(--glass-highlight);
+  backdrop-filter: blur(calc(var(--glass-blur) + 6px)) saturate(160%);
+  -webkit-backdrop-filter: blur(calc(var(--glass-blur) + 6px)) saturate(160%);
+}
+/* Kenar çubuğu: renk geçişli cam */
+@utility glass-sidebar {
+  background-color: var(--glass-bg);
+  background-image: var(--sidebar-gradient);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--shadow-glass), inset 0 1px 0 var(--glass-highlight);
+  /* Arkasında yalnızca sabit zemin var; bulanıklaştırma yok (bkz. PERFORMANS notu) */
+}
+
+/* Sistemde "saydamlığı azalt" açıksa cam yerine opak panel */
+@media (prefers-reduced-transparency: reduce) {
+  .glass, .glass-float, .glass-strong, .glass-sidebar {
+    background-color: var(--color-surface);
+    background-image: none;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+}
+
+/* Katmanların girişi: kısa ve sakin */
+@keyframes modal-in {
+  from { opacity: 0; transform: translateY(6px) scale(0.99); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+/* Toast'un kalan süre çubuğu: soldan sağa doğru boşalır */
+@keyframes toast-progress {
+  from { transform: scaleX(1); }
+  to { transform: scaleX(0); }
+}
+/* Butonda hata: kısa, küçük bir yatay sallanma */
+@keyframes button-shake {
+  0%, 100% { translate: 0; }
+  20%, 60% { translate: -3px 0; }
+  40%, 80% { translate: 3px 0; }
+}
+/* Sayfa değişiminde içerik yalnızca saydamlıkla belirir (kayma yok) */
+@keyframes page-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes tooltip-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, ::backdrop { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}
+
+body {
+  @apply text-fg font-sans antialiased;
+  background-color: var(--app-bg);
+  font-size: 0.9375rem;
+  line-height: 1.55;
+}
+/*
+  Işıklı zemin ayrı, sabit bir katmanda: kaydırınca yerinde kalır.
+  PERFORMANS: eskiden "background-attachment: fixed" kullanılıyordu; bu, her kaydırma karesinde
+  tüm ekranı (4 büyük renk geçişiyle) yeniden boyatır. Sabit konumlu katman ise bir kez çizilir,
+  ekran kartı onu yalnızca yerinde tutar.
+*/
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image: var(--app-glow);
+}
+
+h1, h2, h3 {
+  font-family: var(--font-display);
+  letter-spacing: -0.01em;
+}
+
+/* Kod ve klavye tuşları için eş aralıklı yazı */
+code, kbd, pre {
+  font-family: ui-monospace, "Cascadia Mono", "SF Mono", Consolas, monospace;
+  font-size: 0.875em;
+}
