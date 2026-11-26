@@ -65,7 +65,7 @@ describe("Playground sayfası", () => {
     const ids = [...container.querySelectorAll("[id]")].map((el) => el.id);
     expect(ids.filter((id, i) => ids.indexOf(id) !== i)).toEqual([]);
     // Etiket, başka bölümdeki aynı adlı kontrole değil kendi bölümündekine gider
-    for (const name of ["Button", "Toast"]) {
+    for (const name of ["Button", "Toast", "Input", "Select", "Modal", "Badge", "Empty State", "Loading State"]) {
       const section = screen.getByRole("region", { name });
       for (const control of section.querySelectorAll("select, input")) {
         if (control.id) expect(section.contains(container.querySelector(`label[for="${control.id}"]`))).toBe(true);
@@ -135,6 +135,15 @@ describe("Başlık", () => {
   it("bölüm bağlantıları başlıkta sırayla yer alır", () => {
     renderApp();
     const nav = screen.getByRole("navigation", { name: "Bileşenler" });
-    expect(within(nav).getAllByRole("link").map((a) => a.getAttribute("href"))).toEqual(["#button", "#toast"]);
+    expect(within(nav).getAllByRole("link").map((a) => a.getAttribute("href"))).toEqual([
+      "#button",
+      "#toast",
+      "#input",
+      "#select",
+      "#modal",
+      "#badge",
+      "#empty-state",
+      "#loading-state",
+    ]);
   });
 });
