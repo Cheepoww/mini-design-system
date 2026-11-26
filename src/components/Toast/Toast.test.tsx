@@ -1,7 +1,8 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { TOAST_EXIT_MS, ToastProvider, useToast } from "./Toast";
+import { TOAST_EXIT_MS, ToastHistory, ToastHistoryButton, ToastProvider, useToast } from "./Toast";
 import type { ToastContextValue, ToastId, ToastOptions } from "./Toast";
+import type { ReactNode } from "react";
 
 /** Butona basınca verilen ayarlarla toast gösteren yardımcı bileşen */
 function Trigger({ options }: { options: ToastOptions }) {
@@ -300,5 +301,293 @@ describe("Toast", () => {
     expect(bars).toHaveLength(1);
     fireEvent.mouseEnter(screen.getByText("Süreli").closest("[data-toast]")!);
     expect(screen.getByTestId("toast-progress")).toHaveStyle({ animationPlayState: "paused" });
+  });
+});
+
+/** Provider ayarlarıyla (stack, max…) bağlam fonksiyonlarına erişim; isteğe bağlı geçmiş listesi */
+function withProvider(props: { stack?: boolean; max?: number; historyLimit?: number } = {}, extra?: ReactNode) {
+  let api!: ToastContextValue;
+  function Grab() {
+    api = useToast();
+    return null;
+  }
+  render(
+    <ToastProvider {...props}>
+      <Grab />
+      {extra}
+    </ToastProvider>,
+  );
+  return () => api;
+}
+
+describe("Toast: kapatılamayan önemli bildirim (dismissible: false)", () => {
+  it("× yok, süreyle ve Esc ile kapanmaz; dismissAll dokunmaz; dismiss kapatır", () => {
+    const api = withProvider();
+    act(() => {
+      api().toast({ id: "net", tone: "danger", title: "Bağlantı koptu", dismissible: false });
+    });
+    const card = screen.getByText("Bağlantı koptu").closest("[data-toast]")!;
+    expect(screen.queryByRole("button", { name: "Bildirimi kapat" })).not.toBeInTheDocument();
+
+    advance(60_000);
+    fireEvent.keyDown(card, { key: "Escape" });
+    act(() => api().dismissAll());
+    advance(TOAST_EXIT_MS);
+    expect(screen.getByText("Bağlantı koptu")).toBeInTheDocument();
+
+    act(() => api().dismiss("net"));
+    advance(TOAST_EXIT_MS);
+    expect(screen.queryByText("Bağlantı koptu")).not.toBeInTheDocument();
+  });
+
+  it("güncellenip kapatılabilir yapılınca normal bildirim gibi süreyle kapanır", () => {
+    const api = withProvider();
+    act(() => {
+      api().toast({ id: "net", tone: "danger", title: "Bağlantı koptu", dismissible: false });
+    });
+    act(() => api().update("net", { tone: "success", title: "Bağlantı geri geldi", dismissible: true }));
+    expect(screen.getByRole("button", { name: "Bildirimi kapat" })).toBeInTheDocument();
+    advance(4000 + TOAST_EXIT_MS);
+    expect(screen.queryByText("Bağlantı geri geldi")).not.toBeInTheDocument();
+  });
+
+  it("sırada beklemez: yer doluyken bile hemen görünür", () => {
+    const api = withProvider({ max: 1 });
+    act(() => {
+      api().toast({ title: "Sıradan", duration: 0 });
+      api().toast({ title: "Önemli", dismissible: false });
+    });
+    expect(screen.getByText("Önemli")).toBeInTheDocument();
+    expect(screen.queryByText("Sıradan")).not.toBeInTheDocument();
+    expect(screen.getByText("+1 bildirim sırada")).toBeInTheDocument();
+  });
+});
+
+describe("Toast: sekme gizliyken süre durur", () => {
+  const setVisibility = (state: "hidden" | "visible") => {
+    Object.defineProperty(document, "visibilityState", { configurable: true, get: () => state });
+    act(() => {
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+  };
+  afterEach(() => setVisibility("visible"));
+
+  it("gizliyken kapanmaz, sekmeye dönünce kalan süre işler", () => {
+    const api = withProvider();
+    act(() => {
+      api().toast({ title: "Merhaba", duration: 3000 });
+    });
+    advance(1000);
+    setVisibility("hidden");
+    advance(10_000);
+    expect(screen.getByText("Merhaba")).toBeInTheDocument();
+
+    setVisibility("visible");
+    advance(1900);
+    expect(screen.getByText("Merhaba")).toBeInTheDocument();
+    advance(100 + TOAST_EXIT_MS);
+    expect(screen.queryByText("Merhaba")).not.toBeInTheDocument();
+  });
+});
+
+describe("Toast: geçmiş", () => {
+  it("kapanan bildirimler nedeniyle listelenir (en yenisi üstte); Temizle boşaltır", () => {
+    const api = withProvider({}, <ToastHistory />);
+    expect(screen.getByText("Henüz kapanan bildirim yok.")).toBeInTheDocument();
+
+    act(() => {
+      api().toast({ title: "Birinci", duration: 1000 });
+      api().toast({ title: "İkinci", duration: 0 });
+    });
+    advance(1000 + TOAST_EXIT_MS);
+    fireEvent.click(screen.getByRole("button", { name: "Bildirimi kapat" }));
+    advance(TOAST_EXIT_MS);
+
+    const list = screen.getByRole("region", { name: "Bildirim geçmişi" });
+    const rows = list.querySelectorAll("li");
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toHaveTextContent("İkinci");
+    expect(rows[0]).toHaveTextContent("× ile kapatıldı");
+    expect(rows[1]).toHaveTextContent("Birinci");
+    expect(rows[1]).toHaveTextContent("süre doldu");
+
+    fireEvent.click(screen.getByRole("button", { name: "Temizle" }));
+    expect(screen.getByText("Henüz kapanan bildirim yok.")).toBeInTheDocument();
+  });
+
+  it("historyLimit kadar kayıt tutar", () => {
+    const api = withProvider({ historyLimit: 2 }, <ToastHistory />);
+    act(() => {
+      ["A", "B", "C"].forEach((title) => api().toast({ title, duration: 0 }));
+    });
+    act(() => api().dismissAll());
+    advance(TOAST_EXIT_MS);
+    expect(screen.getByRole("region", { name: "Bildirim geçmişi" }).querySelectorAll("li")).toHaveLength(2);
+  });
+});
+
+describe("Toast: yığın görünümü (stack)", () => {
+  it("deste üzerine gelince açılır; açıkken süreler durur, ayrılınca devam eder", () => {
+    const api = withProvider({ stack: true });
+    act(() => {
+      ["Bir", "İki", "Üç"].forEach((title) => api().toast({ title, duration: 2000 }));
+    });
+    const stack = screen.getByTestId("toast-stack");
+    expect(stack).not.toHaveAttribute("data-expanded");
+
+    fireEvent.mouseEnter(stack);
+    expect(stack).toHaveAttribute("data-expanded");
+    advance(10_000);
+    expect(screen.getByText("Bir")).toBeInTheDocument();
+
+    fireEvent.mouseLeave(stack);
+    expect(stack).not.toHaveAttribute("data-expanded");
+    advance(2000 + TOAST_EXIT_MS);
+    expect(screen.queryByTestId("toast-stack")).not.toBeInTheDocument();
+  });
+
+  it("en fazla 3 kart görünür; dördüncü ve gerisi ekran okuyucudan da gizlenir", () => {
+    const api = withProvider({ stack: true });
+    act(() => {
+      ["1", "2", "3", "4"].forEach((title) => api().toast({ title: `Kart ${title}`, duration: 0 }));
+    });
+    // En eski kart (Kart 1) en arkada, 4. sırada
+    expect(screen.getByText("Kart 1").closest("[data-toast]")).toHaveAttribute("aria-hidden", "true");
+    expect(screen.getByText("Kart 4").closest("[data-toast]")).not.toHaveAttribute("aria-hidden");
+    fireEvent.mouseEnter(screen.getByTestId("toast-stack"));
+    expect(screen.getByText("Kart 1").closest("[data-toast]")).not.toHaveAttribute("aria-hidden");
+  });
+
+  it("klavyeyle bildirimlere girilince (F8) deste açılır", () => {
+    const api = withProvider({ stack: true });
+    act(() => {
+      api().toast({ title: "Klavye", duration: 0 });
+    });
+    const region = screen.getByRole("region", { name: "Bildirimler" });
+    act(() => region.focus());
+    expect(region.querySelector("[data-testid=toast-stack]")).toHaveAttribute("data-expanded");
+  });
+});
+
+describe("Toast: tekrar sayısı", () => {
+  it("aynı id ile tekrar gönderilince ×N görünür, ekran okuyucu kaçıncı kez olduğunu duyar", () => {
+    const api = withProvider();
+    act(() => {
+      api().toast({ id: "yavas", title: "Bağlantı yavaş", duration: 0 });
+    });
+    expect(screen.queryByTestId("toast-count")).not.toBeInTheDocument();
+    act(() => {
+      api().toast({ id: "yavas", title: "Bağlantı yavaş", duration: 0 });
+      api().toast({ id: "yavas", title: "Bağlantı yavaş", duration: 0 });
+    });
+    expect(screen.getByTestId("toast-count")).toHaveTextContent("×3");
+    expect(screen.getByText("(3. kez)", { exact: false })).toHaveClass("sr-only");
+  });
+
+  it("kapandıktan sonra aynı id yeniden gelirse sayaç baştan başlar", () => {
+    const api = withProvider();
+    act(() => {
+      api().toast({ id: "x", title: "Uyarı", duration: 0 });
+      api().toast({ id: "x", title: "Uyarı", duration: 0 });
+    });
+    act(() => api().dismiss("x"));
+    advance(TOAST_EXIT_MS);
+    act(() => {
+      api().toast({ id: "x", title: "Uyarı", duration: 0 });
+    });
+    expect(screen.queryByTestId("toast-count")).not.toBeInTheDocument();
+  });
+});
+
+describe("Toast: eylemde geri sayım", () => {
+  it("countdown açıkken kalan saniye eylem düğmesinde yazar; fare üzerindeyken durur", () => {
+    const api = withProvider();
+    act(() => {
+      api().toast({ title: "Silindi", duration: 5000, action: { label: "Geri al", onClick: () => {}, countdown: true } });
+    });
+    const countdown = screen.getByTestId("toast-countdown");
+    expect(countdown).toHaveTextContent("5");
+    advance(1100);
+    expect(countdown).toHaveTextContent("4");
+
+    fireEvent.mouseEnter(screen.getByText("Silindi").closest("[data-toast]")!);
+    advance(3000);
+    expect(countdown).toHaveTextContent("4");
+    // Düğmenin adı sayıyla değişmez (her saniye okunmasın)
+    expect(screen.getByRole("button", { name: "Geri al" })).toBeInTheDocument();
+  });
+});
+
+describe("Toast: ilerleme ve iki eylem", () => {
+  it("progress varken dolan çubuk görünür ve süreyle kapanmaz; bitince normal kapanır", () => {
+    const api = withProvider();
+    let id!: ToastId;
+    act(() => {
+      id = api().toast({ tone: "loading", title: "Yükleniyor", progress: 0.4 });
+    });
+    expect(screen.getByRole("progressbar", { name: "Yükleniyor" })).toHaveAttribute("aria-valuenow", "40");
+    advance(20_000);
+    expect(screen.getByText("Yükleniyor")).toBeInTheDocument();
+
+    act(() => api().update(id, { tone: "success", title: "Yüklendi", progress: undefined }));
+    expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
+    advance(4000 + TOAST_EXIT_MS);
+    expect(screen.queryByText("Yüklendi")).not.toBeInTheDocument();
+  });
+
+  it("ikinci eylem çalışır ve kapanış nedeni secondaryAction olur", () => {
+    const api = withProvider();
+    const decline = vi.fn();
+    const onClose = vi.fn();
+    act(() => {
+      api().toast({ title: "Davet", action: { label: "Katıl", onClick: () => {} }, secondaryAction: { label: "Reddet", onClick: decline }, onClose });
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Reddet" }));
+    expect(decline).toHaveBeenCalled();
+    expect(onClose).toHaveBeenCalledWith("secondaryAction");
+  });
+});
+
+describe("Toast: sol konumlar", () => {
+  it("top-left ve bottom-left sol kenara yaslanır", () => {
+    const { rerender } = render(
+      <ToastProvider position="top-left">
+        <span />
+      </ToastProvider>,
+    );
+    expect(screen.getByRole("region", { name: "Bildirimler" })).toHaveClass("left-4", "top-4");
+    rerender(
+      <ToastProvider position="bottom-left">
+        <span />
+      </ToastProvider>,
+    );
+    expect(screen.getByRole("region", { name: "Bildirimler" })).toHaveClass("left-4", "bottom-4");
+  });
+});
+
+describe("Toast: başlıktaki zil (ToastHistoryButton)", () => {
+  it("kaçırılan bildirimleri sayar; kullanıcının kapattıkları sayılmaz; açınca sıfırlanır, Esc odağı zile döndürür", () => {
+    const api = withProvider({}, <ToastHistoryButton />);
+    act(() => {
+      api().toast({ title: "Kaçırılan", duration: 1000 });
+      api().toast({ title: "Kapatılan", duration: 0 });
+    });
+    advance(1000 + TOAST_EXIT_MS);
+    fireEvent.click(screen.getByRole("button", { name: "Bildirimi kapat" }));
+    advance(TOAST_EXIT_MS);
+
+    const bell = screen.getByRole("button", { name: "Bildirim geçmişi, 1 kaçırılan bildirim" });
+    expect(screen.getByTestId("toast-unread")).toHaveTextContent("1");
+
+    fireEvent.click(bell);
+    expect(bell).toHaveAttribute("aria-expanded", "true");
+    const panel = screen.getByRole("region", { name: "Bildirim geçmişi" });
+    expect(panel.querySelectorAll("li")).toHaveLength(2);
+    expect(screen.queryByTestId("toast-unread")).not.toBeInTheDocument();
+    expect(bell).toHaveAccessibleName("Bildirim geçmişi");
+
+    fireEvent.keyDown(panel, { key: "Escape" });
+    expect(screen.queryByRole("region", { name: "Bildirim geçmişi" })).not.toBeInTheDocument();
+    expect(bell).toHaveFocus();
   });
 });

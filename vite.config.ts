@@ -10,5 +10,7 @@ export default defineConfig({
     setupFiles: ["./src/test/setup.ts"],
     include: ["src/**/*.test.{ts,tsx}"],
     css: false,
+    // Sayfa testleri 8 bölümün hepsini çizer; varsayılan 5 sn yavaş makinede yetmiyor
+    testTimeout: 15000,
   },
 });

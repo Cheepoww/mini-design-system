@@ -47,7 +47,7 @@
   --color-border: #ead9e0;
   --color-border-strong: #95808a; /* form çerçeveleri: zeminle 3:1 */
   --color-fg: #23181d;
-  --color-fg-muted: #5f4f57;
+  --color-fg-muted: #54444c; /* güçlü renk geçişinde de ≥ 5:1 */
   --color-chrome: #f7e3ec;
 
   /* Grafik ve istatistik ikonları için vurgu renkleri */
@@ -74,11 +74,12 @@
   --glass-highlight: rgb(255 255 255 / 0.8);
   --shadow-glass: 0 8px 30px rgb(120 50 80 / 0.1);
   --app-bg: #f7f0f3;
+  /* Renk geçişi belirgin; metin kontrastı en yoğun noktaya göre ölçüldü (gövde metni ≥ 5:1) */
   --app-glow:
-    radial-gradient(ellipse 55% 45% at 8% 6%, rgb(236 72 153 / 0.22), transparent 70%),
-    radial-gradient(ellipse 45% 40% at 95% 10%, rgb(96 140 230 / 0.18), transparent 70%),
-    radial-gradient(ellipse 55% 45% at 85% 100%, rgb(249 140 70 / 0.22), transparent 70%),
-    radial-gradient(ellipse 40% 35% at 35% 75%, rgb(236 72 153 / 0.1), transparent 70%);
+    radial-gradient(ellipse 65% 55% at 8% 6%, rgb(236 72 153 / 0.34), transparent 72%),
+    radial-gradient(ellipse 50% 45% at 95% 10%, rgb(96 140 230 / 0.24), transparent 70%),
+    radial-gradient(ellipse 60% 50% at 85% 100%, rgb(249 140 70 / 0.28), transparent 70%),
+    radial-gradient(ellipse 50% 40% at 35% 70%, rgb(236 72 153 / 0.18), transparent 72%);
   --sidebar-gradient: linear-gradient(170deg, rgb(236 72 153 / 0.2), rgb(255 255 255 / 0.5) 55%, rgb(255 255 255 / 0.45));
 }
 
@@ -114,7 +115,7 @@
   --color-border: rgb(255 255 255 / 0.1);
   --color-border-strong: #8a7480;
   --color-fg: #f7ecf1;
-  --color-fg-muted: #c3adb7;
+  --color-fg-muted: #d4c0c9; /* güçlü renk geçişinde de ≥ 5:1 */
   --color-chrome: #2c1622;
 
   --color-accent-pink: #f080ad;
@@ -130,11 +131,13 @@
   --glass-highlight: rgb(255 255 255 / 0.07);
   --shadow-glass: 0 12px 40px rgb(0 0 0 / 0.35);
   --app-bg: #0e090c;
+  /* Pembe baskın: iki köşede ve ortada pembe; mavi ve turuncu yalnızca yardımcı vurgu */
   --app-glow:
-    radial-gradient(ellipse 50% 45% at 10% 4%, rgb(214 51 132 / 0.35), transparent 70%),
-    radial-gradient(ellipse 45% 40% at 96% 8%, rgb(70 100 200 / 0.28), transparent 70%),
-    radial-gradient(ellipse 55% 45% at 88% 100%, rgb(234 100 30 / 0.3), transparent 70%),
-    radial-gradient(ellipse 40% 35% at 40% 70%, rgb(150 40 100 / 0.16), transparent 70%);
+    radial-gradient(ellipse 70% 55% at 10% 4%, rgb(224 56 140 / 0.52), transparent 72%),
+    radial-gradient(ellipse 40% 35% at 96% 8%, rgb(70 100 200 / 0.18), transparent 70%),
+    radial-gradient(ellipse 55% 45% at 88% 100%, rgb(234 100 30 / 0.24), transparent 70%),
+    radial-gradient(ellipse 60% 45% at 40% 65%, rgb(190 40 120 / 0.34), transparent 72%),
+    radial-gradient(ellipse 50% 45% at 5% 100%, rgb(200 50 130 / 0.3), transparent 70%);
   --sidebar-gradient: linear-gradient(170deg, rgb(190 45 110 / 0.5), rgb(90 25 58 / 0.45) 50%, rgb(45 18 32 / 0.45));
 }
 
@@ -205,6 +208,12 @@
 @keyframes toast-progress {
   from { transform: scaleX(1); }
   to { transform: scaleX(0); }
+}
+/* Butonda hata: kısa, küçük bir yatay sallanma */
+@keyframes button-shake {
+  0%, 100% { translate: 0; }
+  20%, 60% { translate: -3px 0; }
+  40%, 80% { translate: 3px 0; }
 }
 /* Sayfa değişiminde içerik yalnızca saydamlıkla belirir (kayma yok) */
 @keyframes page-in {
