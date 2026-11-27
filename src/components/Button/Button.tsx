@@ -32,6 +32,11 @@ interface ButtonOwnProps {
   /** async onClick sonrası ✓ veya ✕ kaç ms görünsün. Varsayılan: 1800 */
   feedbackDuration?: number;
   /**
+   * async onClick hata verirse (Promise reddedilirse) hatayla çağrılır. Verilmezse hata konsola yazılır:
+   * buton ✕ gösterse de hatanın kendisi sessizce kaybolmasın.
+   */
+  onError?: (error: unknown) => void;
+  /**
    * İlerleme (0–1). Verilirse buton soldan sağa dolar ve yüzdeyi gösterir; bu sürede tıklanamaz.
    * İş bitince undefined yap.
    */
@@ -159,6 +164,7 @@ export function Button(props: ButtonProps) {
     error: errorProp = false,
     errorText,
     feedbackDuration = BUTTON_FEEDBACK_MS,
+    onError,
     progress,
     disabled = false,
     disabledReason,
@@ -294,7 +300,12 @@ export function Button(props: ButtonProps) {
       setAuto("loading");
       result.then(
         () => mounted.current && setAuto("success"),
-        () => mounted.current && setAuto("error"),
+        (error: unknown) => {
+          // Hata yutulmasın: ya çağırana verilir ya da konsola yazılır
+          if (onError) onError(error);
+          else console.error("Button: onClick işlemi başarısız oldu", error);
+          if (mounted.current) setAuto("error");
+        },
       );
     }
   };
