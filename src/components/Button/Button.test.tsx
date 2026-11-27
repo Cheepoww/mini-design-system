@@ -477,3 +477,35 @@ describe("IconButton: async durum", () => {
     expect(button.className).toContain("[&:has(>svg)>[data-icon]]:hidden");
   });
 });
+
+describe("Button: async hata kaybolmaz", () => {
+  it("onError verilmezse hata konsola yazılır", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    const error = new Error("ağ yok");
+    render(<Button onClick={() => Promise.reject(error)}>Gönder</Button>);
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Gönder" }));
+    });
+    expect(log).toHaveBeenCalledWith(expect.stringContaining("onClick"), error);
+    log.mockRestore();
+  });
+
+  it("onError verilirse hata ona gider, konsola yazılmaz; buton yine ✕ gösterir", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    const onError = vi.fn();
+    const error = new Error("ağ yok");
+    render(
+      <Button errorText="Gönderilemedi" onError={onError} onClick={() => Promise.reject(error)}>
+        Gönder
+      </Button>,
+    );
+    const button = screen.getByRole("button", { name: "Gönder" });
+    await act(async () => {
+      fireEvent.click(button);
+    });
+    expect(onError).toHaveBeenCalledWith(error);
+    expect(log).not.toHaveBeenCalled();
+    expect(button).toHaveAccessibleName("Gönderilemedi");
+    log.mockRestore();
+  });
+});

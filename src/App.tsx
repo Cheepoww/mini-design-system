@@ -975,6 +975,7 @@ function ButtonSection() {
         { name: "onClick", type: "(e) => unknown", description: "Promise döndürürse (async) buton kendini yönetir: sürerken yükleniyor, bitince ✓ (successText), hata olursa ✕ (errorText); başka state gerekmez" },
         { name: "error / errorText", type: "boolean, ReactNode", default: "false", description: "✕ ikonu, kırmızı renk ve kısa sallanma (hareket azaltma tercihinde sallanmaz); errorText metnin yerine geçer" },
         { name: "feedbackDuration", type: "number (ms)", default: "1800", description: "async onClick sonrası ✓ / ✕ ne kadar görünsün" },
+        { name: "onError", type: "(error) => void", description: "async onClick hata verirse hatayla çağrılır (ör. hata izleme servisine gönder). Verilmezse hata konsola yazılır; sessizce kaybolmaz" },
         { name: "progress", type: "number (0–1)", description: "Buton soldan sağa dolar ve yüzdeyi gösterir; bu sürede tıklanamaz. Bitince undefined yap" },
         { name: "shortcut", type: "string", description: "Klavye kısayolu (ör. \"Mod+S\": Mac'te ⌘S, diğerlerinde Ctrl+S). Basılınca buton tıklanmış gibi çalışır; tuş etiketi görünür, ekran okuyucuya aria-keyshortcuts ile söylenir. Tek tuşlu kısayollar yazı yazarken çalışmaz" },
         { name: "disabled", type: "boolean", default: "false", description: "Butonu pasif yapar" },
